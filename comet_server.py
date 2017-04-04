@@ -76,7 +76,7 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True, trac
 
         # save file versions and check for changes only if different from last notebook
         if os.path.isfile(dest_fname):
-            if not same_notebook(nb, dest_fname, True):
+            if same_notebook(nb, dest_fname, True):
                 return
 
         # TODO build way to read from external server
@@ -136,7 +136,7 @@ def record_action(action_data, dest_fname, db):
     conn = sqlite3.connect(db)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text, cell_index text, diff text)''') #id integer primary key autoincrement,
-    tuple_action = (str(action_data['time']), action_data['name'], str(action_data['index'], pickle.dumps(diff)) #pickle.dumps(action_data['cell']))
+    tuple_action = (str(action_data['time']), action_data['name'], str(action_data['index']), pickle.dumps(diff)) #pickle.dumps(action_data['cell']))
     c.execute('INSERT INTO actions VALUES (?,?,?,?)', tuple_action)
     conn.commit()
     conn.close()
@@ -155,7 +155,7 @@ def get_diff(action_data, dest_fname):
     selected_indices = action_data['indices']
 
     check = indices_to_check(action, selected_index, selected_indices, len_new)
-    diff = check_selected_indices(check, action_data, dest_fname)
+    diff = check_selected_indices(check, action_data, dest_fname, True)
 
     return diff
 
@@ -169,12 +169,17 @@ def indices_to_check(action, selected_index, selected_indices, len_new):
     len_new: (int) length in cells of the notebook we are comparing
     """
 
-    if action in ['run-cell','run-cell-and-select-next','insert-cell-above','paste-cell-above','merge-cell-with-next-cell','change-cell-to-markdown','change-cell-to-code','change-cell-to-raw']:
+    if action in ['run-cell','insert-cell-above','paste-cell-above','merge-cell-with-next-cell','change-cell-to-markdown','change-cell-to-code','change-cell-to-raw']:
         return [selected_index]
     elif action in ['insert-cell-below','paste-cell-below']:
         return [selected_index + 1]
-    elif action in ['run-cell-and-insert-below','split-cell-at-cursor','move-cell-down']:
-        return [selected_index, selected_index + 1]
+    elif action in ['run-cell-and-insert-below','run-cell-and-select-next','split-cell-at-cursor','move-cell-down']:
+        if selected_index >= len_new:
+            return []
+        elif selected_index == len_new-1:
+            return [selected_index]
+        else:
+            return [selected_index, selected_index + 1]
     elif action in ['move-cell-up']:
         if selected_index == 0:
             return []
@@ -190,7 +195,7 @@ def indices_to_check(action, selected_index, selected_indices, len_new):
     elif action in ['undo-cell-deletion']:
         return [x for x in range(0, len_new)]# scan all cells to look for 1st new cell
     elif action in ['merge-cell-with-previous-cell']:
-        return [max[0, selected_index-1]] # i-1 if exists, otherwise i
+        return [max([0, selected_index-1])] # i-1 if exists, otherwise i
     elif action in ['merge-selected-cells','merge-cells']:
         return min(selected_indices)
     else:
@@ -241,13 +246,13 @@ def check_selected_indices(indices, action_data, dest_fname, compare_outputs = F
                     if len(cells1[i]['outputs']) != len(cells2[i]['outputs']):
                         changes[i] = cells2[i]
                     # and for all outputs for each cell
-                    if len(cells1[i]['outputs']) > 0 and len(cells2[i]['outputs']) > 0:
+                    elif len(cells1[i]['outputs']) > 0 and len(cells2[i]['outputs']) > 0:
                         for j in range(len(cells1[i]['outputs'])):
                             # check that the output type matches
                             if cells1[i]['outputs'][j]['output_type'] != cells2[i]['outputs'][j]['output_type']:
                                 changes[i] = cells2[i]
                             # and that the relevant data matches
-                            if cells1[i]['outputs'][j]['output_type'] in ["display_data","execute_result"]:
+                            elif cells1[i]['outputs'][j]['output_type'] in ["display_data","execute_result"]:
                                 if cells1[i]['outputs'][j]['data'] != cells2[i]['outputs'][j]['data']:
                                     changes[i] = cells2[i]
                             elif cells1[i]['outputs'][j]['output_type'] == "stream":
