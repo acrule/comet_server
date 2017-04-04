@@ -16,7 +16,7 @@ from notebook.base.handlers import IPythonHandler, path_regex
 class CometHandler(IPythonHandler):
 
     def get(self):
-        # check if extension loaded by visiting http://localhost:8888/comet
+        """check if extension loaded by visiting http://localhost:8888/comet"""
 
         self.finish('Comet is working.')
 
@@ -24,32 +24,35 @@ class CometHandler(IPythonHandler):
         """
         Recieve and save data about notebook actions
 
-        path: relative path to notebook requesting to POST
+        path: (str) relative path to notebook requesting POST
         """
 
         post_data = self.get_json_body()
         os_path = self.contents_manager._get_os_path(path)
         save_changes(os_path, post_data)
 
-def save_changes(os_path, action_data):
+def save_changes(os_path, action_data, track_git=True, track_versions=True, track_actions=True):
     """
     save copy of notebook to an external drive (volume) like a USB key
 
-    os_path: path to notebook as saved on the operating system
-    action_data: action data in the form of
-        t: int
-        name: string,
-        index: int,
-        indices: array of ints,
-        model: notebook JSON
+    os_path: (str) path to notebook as saved on the operating system
+    action_data: (dict) action data in the form of
+        t: (int) time action was performed
+        name: (str) name of action
+        index: (int) selected index
+        indices: (list of ints) selected indices
+        model: (dict) notebook JSON
+    track_git: (bool) use git to track changes to the notebook
+    track_versions: (bool) periodically save full versions of the notebook
+    track_actions: (bool) track individual actions performed on the notebook
     """
 
     volume = find_storage_volume()
     if not volume:
-        print("Could not find external volume to save copy of notebook")
+        print("Could not find external volume to save Comet data")
     else:
 
-        # get the notebook in the correct format
+        # get the notebook in the correct format (nbnode)
         nb = nbformat.from_dict(action_data['model'])
 
         # get all our file names in order
@@ -67,39 +70,42 @@ def save_changes(os_path, action_data):
             create_dir(dest_dir)
             create_dir(version_dir)
 
-        # save action to the database
-        save_action(action_data, dest_fname, dbname)
+        # save information about the action to an sqlite database
+        if track_actions:
+            record_action(action_data, dest_fname, dbname)
 
-        # TODO test comparison of outputs
-        # TODO build way to read from external server
-        # save the file if different from last version
+        # save file versions and check for changes only if different from last notebook
         if os.path.isfile(dest_fname):
-            if same_notebook(nb, dest_fname, True):
+            if not same_notebook(nb, dest_fname, True):
                 return
 
+        # TODO build way to read from external server
         # save the current file to the external volume for future comparison
         nbformat.write(nb, dest_fname, nbformat.NO_CONVERT)
 
+        # TODO build way to read from external server
         # and save a time-stamped version periodically
-        if not saved_recently(version_dir):
-            nbformat.write(nb, ver_fname, nbformat.NO_CONVERT)
+        if track_versions:
+            if not saved_recently(version_dir):
+                nbformat.write(nb, ver_fname, nbformat.NO_CONVERT)
 
-        # TODO find a way to supress .communicate() printing to stdout as
-        # it clutters the terminal
+        # TODO find a way to supress .communicate() printing to stdout as it clutters the terminal with information about git
         # track file changes with git
-        in_out = verify_git_repository(dest_dir)
-        p1 = subprocess.Popen(["git", "add", fname + ".ipynb"], cwd=dest_dir)
-        in_out = p1.communicate()
-        p2 = subprocess.Popen(["git", "commit", "-m", "'Commit'"], cwd=dest_dir)
+        if track_git:
+            in_out = verify_git_repository(dest_dir)
+            p1 = subprocess.Popen(["git", "add", fname + ".ipynb"], cwd=dest_dir)
+            in_out = p1.communicate()
+            p2 = subprocess.Popen(["git", "commit", "-m", "'Commit'"], cwd=dest_dir)
 
+# TODO make more general so can save to any directory, not just mounted volumes (e.g., don't use os.path.ismount)
 def find_storage_volume(search_dir = '/Volumes', namefilter="", key_file="traces.cfg"):
     """
     Check if external drive is mounted before saving version files, looking for
     drives with a particular name, key file, or both
 
-    search_dir: dir to look for storage dir
-    namefilter: substring of volume name authenticating storage dir
-    key_file: file authenticating storage dir
+    search_dir: (str) dir to look for storage dir
+    namefilter: (str) substring of volume name authenticating storage dir
+    key_file: (str) file authenticating storage dir
     """
     for d in os.listdir(search_dir):
         if namefilter in d:
@@ -114,45 +120,53 @@ def find_storage_volume(search_dir = '/Volumes', namefilter="", key_file="traces
                     pass
     return False
 
-def save_action(action_data, dest_fname, db):
+def record_action(action_data, dest_fname, db):
     """
     save action to sqlite database
 
-    db: path to database
+    action_data: (dict) data about action, see above for more details
+    dest_fname: (str) full path to where file is saved on volume
+    db: (str) path to sqlite database
     """
 
-    # TODO save the cell diff to the database
     diff = get_diff(action_data, dest_fname)
+    # TODO remove print statement after debugging diff tracking
+    print("Diff: " + str(diff))
 
     conn = sqlite3.connect(db)
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text, cell_index text)''') #id integer primary key autoincrement,
-    tuple_action = (str(action_data['time']), action_data['name'], str(action_data['index'])) #pickle.dumps(action_data['cell']))
-    c.execute('INSERT INTO actions VALUES (?,?,?)', tuple_action)
+    c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text, cell_index text, diff text)''') #id integer primary key autoincrement,
+    tuple_action = (str(action_data['time']), action_data['name'], str(action_data['index'], pickle.dumps(diff)) #pickle.dumps(action_data['cell']))
+    c.execute('INSERT INTO actions VALUES (?,?,?,?)', tuple_action)
     conn.commit()
     conn.close()
 
 def get_diff(action_data, dest_fname):
+    """
+    Return a dictionary of all the new cells
+
+    action_data: (dict) data about the action, see above for more details
+    dest_fname: (str) full path to where file is saved on volume
+    """
+
     len_new = len(action_data['model']['cells'])
     action = action_data['name']
     selected_index = action_data['index']
     selected_indices = action_data['indices']
 
-    check = indices_to_check(action, selected_index, selected_indices, len_new) # returns a validated array of indices to check, removing those out of range
-    print('Check cells')
-    print(check)
-    diff = check_selected_indices(check, action_data, dest_fname) # returns a list of the different cells
-    print('The diff is:')
-    print(diff)
+    check = indices_to_check(action, selected_index, selected_indices, len_new)
+    diff = check_selected_indices(check, action_data, dest_fname)
+
+    return diff
 
 def indices_to_check(action, selected_index, selected_indices, len_new):
     """
     Find what notebook cells to check for changes based on the type of action
 
-    action: action name
-    selected_index: single selected cell
-    selected_indices: array
-    action: adsf
+    action: (str) action name
+    selected_index: (int) single selected cell
+    selected_indices: (list of ints) all selected cells
+    len_new: (int) length in cells of the notebook we are comparing
     """
 
     if action in ['run-cell','run-cell-and-select-next','insert-cell-above','paste-cell-above','merge-cell-with-next-cell','change-cell-to-markdown','change-cell-to-code','change-cell-to-raw']:
@@ -174,7 +188,7 @@ def indices_to_check(action, selected_index, selected_indices, len_new):
         return [x for x in range(selected_index, len_new)] # look at all cells i+1 - n
     # TODO figure out how to detect where previous cell inserted
     elif action in ['undo-cell-deletion']:
-        return []# look for 1st new cell
+        return [x for x in range(0, len_new)]# scan all cells to look for 1st new cell
     elif action in ['merge-cell-with-previous-cell']:
         return [max[0, selected_index-1]] # i-1 if exists, otherwise i
     elif action in ['merge-selected-cells','merge-cells']:
@@ -182,8 +196,7 @@ def indices_to_check(action, selected_index, selected_indices, len_new):
     else:
         return []
 
-# TODO implement comparison of outputs
-def check_selected_indices(indices, action_data, dest_fname):
+def check_selected_indices(indices, action_data, dest_fname, compare_outputs = False):
     """
 
     indices: list of cell indices to compare
@@ -191,20 +204,59 @@ def check_selected_indices(indices, action_data, dest_fname):
     dest_fname: name of file to compare to
     """
 
+    changes = {}
+
+    # if there is no current notebook to compare to, assume this is the first
+    # time the notebook has been saved and don't save a diff since we will save
+    # a full version of the file
+    if not os.path.isfile(dest_fname):
+        return {}
+
     cells1 = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
     cells2 = action_data['model']['cells']
 
-    changes = {}
-
-    for i in indices:
-        if i >= len(cells1):
-            changes[i] = cells2[i]
-        elif cells1[i]["cell_type"] != cells2[i]["cell_type"]:
-            changes[i] = cells2[i]
-        elif cells1[i]["source"] != cells2[i]["source"]:
-            changes[i] = cells2[i]
-
-    return changes
+    # special case for undo deletion since cell may insert at any part of the nb
+    # we simply look for the first cell that is not the same and return only
+    # that cell since all other cells afterwards will look different because
+    # of being shifted down by one index
+    if action_data['name'] == 'undo-cell-deletion':
+        for i in indices:
+            if i >= len(cells1):
+                changes[i] = cells2[i]
+                return changes
+            elif cells1[i]["source"] != cells2[i]["source"]:
+                changes[i] = cells2[i]
+                return changes
+    else:
+        for i in indices:
+            if i >= len(cells1):
+                changes[i] = cells2[i]
+            elif cells1[i]["cell_type"] != cells2[i]["cell_type"]:
+                changes[i] = cells2[i]
+            elif cells1[i]["source"] != cells2[i]["source"]:
+                changes[i] = cells2[i]
+            elif compare_outputs:
+                if cells1[i]["cell_type"] == "code" and cells2[i]["cell_type"] == "code":
+                    # ensure same number of outputs
+                    if len(cells1[i]['outputs']) != len(cells2[i]['outputs']):
+                        changes[i] = cells2[i]
+                    # and for all outputs for each cell
+                    if len(cells1[i]['outputs']) > 0 and len(cells2[i]['outputs']) > 0:
+                        for j in range(len(cells1[i]['outputs'])):
+                            # check that the output type matches
+                            if cells1[i]['outputs'][j]['output_type'] != cells2[i]['outputs'][j]['output_type']:
+                                changes[i] = cells2[i]
+                            # and that the relevant data matches
+                            if cells1[i]['outputs'][j]['output_type'] in ["display_data","execute_result"]:
+                                if cells1[i]['outputs'][j]['data'] != cells2[i]['outputs'][j]['data']:
+                                    changes[i] = cells2[i]
+                            elif cells1[i]['outputs'][j]['output_type'] == "stream":
+                                if cells1[i]['outputs'][j]['text'] != cells2[i]['outputs'][j]['text']:
+                                    changes[i] = cells2[i]
+                            elif cells1[i]['outputs'][j]['output_type'] == "error":
+                                if cells1[i]['outputs'][j]['evalue'] != cells2[i]['outputs'][j]['evalue']:
+                                    changes[i] = cells2[i]
+        return changes
 
 
 def same_notebook(nb1, nb2, compare_outputs = False):
