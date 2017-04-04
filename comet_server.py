@@ -1,9 +1,5 @@
 """
-Adam Rule
-March 29, 2017
-
 Comet Server: Server extension paired with nbextension to track notebook use
-Loosely based on https://github.com/Carreau/jupyter-book/blob/master/extensions/server_ext.py
 """
 
 import os
@@ -20,28 +16,32 @@ from notebook.base.handlers import IPythonHandler, path_regex
 class CometHandler(IPythonHandler):
 
     def get(self):
-        """ check if extension loaded by visiting http://localhost:8888/comet """
+        # check if extension loaded by visiting http://localhost:8888/comet
 
         self.finish('Comet is working.')
 
     def post(self, path=''):
-        """ Recieve and save data about notebook events
-        path: relative path to notebook requesting the POST """
+        """
+        Recieve and save data about notebook actions
+
+        path: relative path to notebook requesting to POST
+        """
 
         post_data = self.get_json_body()
         os_path = self.contents_manager._get_os_path(path)
         save_changes(os_path, post_data)
 
-def save_changes(os_path, event_data):
+def save_changes(os_path, action_data):
     """
-    save copy of notebook to an external drive
+    save copy of notebook to an external drive (volume) like a USB key
+
     os_path: path to notebook as saved on the operating system
-    event_data: event data in the form of
+    action_data: action data in the form of
         t: int
         name: string,
         index: int,
         indices: array of ints,
-        model: JSON of notebook
+        model: notebook JSON
     """
 
     volume = find_storage_volume()
@@ -50,7 +50,7 @@ def save_changes(os_path, event_data):
     else:
 
         # get the notebook in the correct format
-        nb = nbformat.from_dict(event_data['model'])
+        nb = nbformat.from_dict(action_data['model'])
 
         # get all our file names in order
         os_dir, fname = os.path.split(os_path)
@@ -67,8 +67,8 @@ def save_changes(os_path, event_data):
             create_dir(dest_dir)
             create_dir(version_dir)
 
-        # save event to the database
-        save_event(event_data, dest_fname, dbname)
+        # save action to the database
+        save_action(action_data, dest_fname, dbname)
 
         # TODO test comparison of outputs
         # TODO build way to read from external server
@@ -114,69 +114,85 @@ def find_storage_volume(search_dir = '/Volumes', namefilter="", key_file="traces
                     pass
     return False
 
-def save_event(event_data, dest_fname, db):
+def save_action(action_data, dest_fname, db):
     """
-    save event to sqlite database
+    save action to sqlite database
 
     db: path to database
     """
 
     # TODO save the cell diff to the database
-    diff = get_diff(event_data, dest_fname)
+    diff = get_diff(action_data, dest_fname)
 
     conn = sqlite3.connect(db)
     c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS events (time integer, name text, cell_index text)''') #id integer primary key autoincrement,
-    tuple_event = (str(event_data['time']), event_data['name'], str(event_data['index'])) #pickle.dumps(event_data['cell']))
-    c.execute('INSERT INTO events VALUES (?,?,?)', tuple_event)
+    c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text, cell_index text)''') #id integer primary key autoincrement,
+    tuple_action = (str(action_data['time']), action_data['name'], str(action_data['index'])) #pickle.dumps(action_data['cell']))
+    c.execute('INSERT INTO actions VALUES (?,?,?)', tuple_action)
     conn.commit()
     conn.close()
 
-def get_diff(event_data, dest_fname):
-    len_new = len(event_data['model']['cells'])
-    event = event_data['name']
-    selected_index = event_data['index']
-    selected_indices = event_data['indices']
+def get_diff(action_data, dest_fname):
+    len_new = len(action_data['model']['cells'])
+    action = action_data['name']
+    selected_index = action_data['index']
+    selected_indices = action_data['indices']
 
-    check = indices_to_check(event, selected_index, selected_indices, len_new) # returns a validated array of indices to check, removing those out of range
+    check = indices_to_check(action, selected_index, selected_indices, len_new) # returns a validated array of indices to check, removing those out of range
     print('Check cells')
     print(check)
-    diff = check_selected_indices(check, event_data, dest_fname) # returns a list of the different cells
+    diff = check_selected_indices(check, action_data, dest_fname) # returns a list of the different cells
     print('The diff is:')
     print(diff)
 
-def indices_to_check(event, selected_index, selected_indices, len_new):
-    if event in ['run-cell','run-cell-and-select-next','insert-cell-above','paste-cell-above','merge-cell-with-next-cell','change-cell-to-markdown','change-cell-to-code','change-cell-to-raw']:
+def indices_to_check(action, selected_index, selected_indices, len_new):
+    """
+    Find what notebook cells to check for changes based on the type of action
+
+    action: action name
+    selected_index: single selected cell
+    selected_indices: array
+    action: adsf
+    """
+
+    if action in ['run-cell','run-cell-and-select-next','insert-cell-above','paste-cell-above','merge-cell-with-next-cell','change-cell-to-markdown','change-cell-to-code','change-cell-to-raw']:
         return [selected_index]
-    elif event in ['insert-cell-below','paste-cell-below']:
+    elif action in ['insert-cell-below','paste-cell-below']:
         return [selected_index + 1]
-    elif event in ['run-cell-and-insert-below','split-cell-at-cursor','move-cell-down']:
+    elif action in ['run-cell-and-insert-below','split-cell-at-cursor','move-cell-down']:
         return [selected_index, selected_index + 1]
-    elif event in ['move-cell-up']:
+    elif action in ['move-cell-up']:
         if selected_index == 0:
             return []
         else:
             return [selected_index, selected_index-1]
-    elif event in ['run-all-cells']:
+    elif action in ['run-all-cells']:
         return [x for x in range(len_new)]
-    elif event in ['run-all-cells-above']:
+    elif action in ['run-all-cells-above']:
         return [x for x in range(selected_index)] # look at cells 0 - i-1
-    elif event in ['run-all-cells-below']:
+    elif action in ['run-all-cells-below']:
         return [x for x in range(selected_index, len_new)] # look at all cells i+1 - n
     # TODO figure out how to detect where previous cell inserted
-    elif event in ['undo-cell-deletion']:
+    elif action in ['undo-cell-deletion']:
         return []# look for 1st new cell
-    elif event in ['merge-cell-with-previous-cell']:
+    elif action in ['merge-cell-with-previous-cell']:
         return [max[0, selected_index-1]] # i-1 if exists, otherwise i
-    elif event in ['merge-selected-cells','merge-cells']:
+    elif action in ['merge-selected-cells','merge-cells']:
         return min(selected_indices)
     else:
         return []
 
 # TODO implement comparison of outputs
-def check_selected_indices(indices, event_data, dest_fname):
+def check_selected_indices(indices, action_data, dest_fname):
+    """
+
+    indices: list of cell indices to compare
+    action_data: new notebook data to compare
+    dest_fname: name of file to compare to
+    """
+
     cells1 = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
-    cells2 = event_data['model']['cells']
+    cells2 = action_data['model']['cells']
 
     changes = {}
 
@@ -276,6 +292,12 @@ def create_dir(directory):
         pass
 
 def verify_git_repository(directory):
+    """
+    check is directory is already a git repository
+
+    directory: directory to verify
+    """
+
     if '.git' not in os.listdir(directory):
         p = subprocess.Popen(['git','init'], cwd=directory)
         return p.communicate()
@@ -283,8 +305,11 @@ def verify_git_repository(directory):
         return False
 
 def load_jupyter_server_extension(nb_app):
-    """ Load the extension and set up routing to proper handler
-    nb_app: Jupyter Notebook Application """
+    """
+    Load the extension and set up routing to proper handler
+
+    nb_app: Jupyter Notebook Application
+    """
 
     nb_app.log.info('Comet Server extension loaded')
     web_app = nb_app.web_app
