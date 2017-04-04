@@ -33,9 +33,16 @@ class CometHandler(IPythonHandler):
         save_changes(os_path, post_data)
 
 def save_changes(os_path, event_data):
-    """ save copy of notebook to an external drive
+    """
+    save copy of notebook to an external drive
     os_path: path to notebook as saved on the operating system
-    event_data: event data """
+    event_data: event data in the form of
+        t: int
+        name: string,
+        index: int,
+        indices: array of ints,
+        model: JSON of notebook
+    """
 
     volume = find_storage_volume()
     if not volume:
@@ -61,7 +68,7 @@ def save_changes(os_path, event_data):
             create_dir(version_dir)
 
         # save event to the database
-        save_event(event_data, dbname)
+        save_event(event_data, dest_fname, dbname)
 
         # TODO test comparison of outputs
         # TODO build way to read from external server
@@ -107,12 +114,15 @@ def find_storage_volume(search_dir = '/Volumes', namefilter="", key_file="traces
                     pass
     return False
 
-def save_event(event_data, db):
+def save_event(event_data, dest_fname, db):
     """
     save event to sqlite database
 
     db: path to database
     """
+
+    # TODO save the cell diff to the database
+    diff = get_diff(event_data, dest_fname)
 
     conn = sqlite3.connect(db)
     c = conn.cursor()
@@ -121,6 +131,65 @@ def save_event(event_data, db):
     c.execute('INSERT INTO events VALUES (?,?,?)', tuple_event)
     conn.commit()
     conn.close()
+
+def get_diff(event_data, dest_fname):
+    len_new = len(event_data['model']['cells'])
+    event = event_data['name']
+    selected_index = event_data['index']
+    selected_indices = event_data['indices']
+
+    check = indices_to_check(event, selected_index, selected_indices, len_new) # returns a validated array of indices to check, removing those out of range
+    print('Check cells')
+    print(check)
+    diff = check_selected_indices(check, event_data, dest_fname) # returns a list of the different cells
+    print('The diff is:')
+    print(diff)
+
+def indices_to_check(event, selected_index, selected_indices, len_new):
+    if event in ['run-cell','run-cell-and-select-next','insert-cell-above','paste-cell-above','merge-cell-with-next-cell','change-cell-to-markdown','change-cell-to-code','change-cell-to-raw']:
+        return [selected_index]
+    elif event in ['insert-cell-below','paste-cell-below']:
+        return [selected_index + 1]
+    elif event in ['run-cell-and-insert-below','split-cell-at-cursor','move-cell-down']:
+        return [selected_index, selected_index + 1]
+    elif event in ['move-cell-up']:
+        if selected_index == 0:
+            return []
+        else:
+            return [selected_index, selected_index-1]
+    elif event in ['run-all-cells']:
+        return [x for x in range(len_new)]
+    elif event in ['run-all-cells-above']:
+        return [x for x in range(selected_index)] # look at cells 0 - i-1
+    elif event in ['run-all-cells-below']:
+        return [x for x in range(selected_index, len_new)] # look at all cells i+1 - n
+    # TODO figure out how to detect where previous cell inserted
+    elif event in ['undo-cell-deletion']:
+        return []# look for 1st new cell
+    elif event in ['merge-cell-with-previous-cell']:
+        return [max[0, selected_index-1]] # i-1 if exists, otherwise i
+    elif event in ['merge-selected-cells','merge-cells']:
+        return min(selected_indices)
+    else:
+        return []
+
+# TODO implement comparison of outputs
+def check_selected_indices(indices, event_data, dest_fname):
+    cells1 = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
+    cells2 = event_data['model']['cells']
+
+    changes = {}
+
+    for i in indices:
+        if i >= len(cells1):
+            changes[i] = cells2[i]
+        elif cells1[i]["cell_type"] != cells2[i]["cell_type"]:
+            changes[i] = cells2[i]
+        elif cells1[i]["source"] != cells2[i]["source"]:
+            changes[i] = cells2[i]
+
+    return changes
+
 
 def same_notebook(nb1, nb2, compare_outputs = False):
     """ Check if two Jupyter notebooks are essentailly the same
@@ -157,28 +226,23 @@ def same_notebook(nb1, nb2, compare_outputs = False):
             if cells1[i]["cell_type"] == "code" and cells2[i]["cell_type"] == "code":
                 # ensure same number of outputs
                 if len(cells1[i]['outputs']) != len(cells2[i]['outputs']):
-                    print("outputs not the same length")
                     return False
                 # and for all outputs for each cell
                 if len(cells1[i]['outputs']) > 0 and len(cells2[i]['outputs']) > 0:
                     for j in range(len(cells1[i]['outputs'])):
                         # check that the output type matches
                         if cells1[i]['outputs'][j]['output_type'] != cells2[i]['outputs'][j]['output_type']:
-                            print("output types do not match")
                             return False
 
                         # and that the relevant data matches
                         if cells1[i]['outputs'][j]['output_type'] in ["display_data","execute_result"]:
                             if cells1[i]['outputs'][j]['data'] != cells2[i]['outputs'][j]['data']:
-                                print("display/execute does not match")
                                 return False
                         elif cells1[i]['outputs'][j]['output_type'] == "stream":
                             if cells1[i]['outputs'][j]['text'] != cells2[i]['outputs'][j]['text']:
-                                print("stream does not match")
                                 return False
                         elif cells1[i]['outputs'][j]['output_type'] == "error":
                             if cells1[i]['outputs'][j]['evalue'] != cells2[i]['outputs'][j]['evalue']:
-                                print("error does not match")
                                 return False
 
     return True
