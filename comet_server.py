@@ -91,10 +91,10 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True, trac
         # TODO find a way to supress .communicate() printing to stdout as it clutters the terminal with information about git
         # track file changes with git
         if track_git:
-            in_out = verify_git_repository(dest_dir)
+            verify_git_repository(dest_dir)
             p1 = subprocess.Popen(["git", "add", fname + ".ipynb"], cwd=dest_dir)
-            in_out = p1.communicate()
-            p2 = subprocess.Popen(["git", "commit", "-m", "'Commit'"], cwd=dest_dir)
+            out, err = p1.communicate()
+            p2 = subprocess.Popen(["git", "commit", "-m", "'Commit'", '--quiet'], cwd=dest_dir)
 
 # TODO make more general so can save to any directory, not just mounted volumes (e.g., don't use os.path.ismount)
 def find_storage_volume(search_dir = '/Volumes', namefilter="", key_file="traces.cfg"):
@@ -354,10 +354,10 @@ def verify_git_repository(directory):
     """
 
     if '.git' not in os.listdir(directory):
-        p = subprocess.Popen(['git','init'], cwd=directory)
-        return p.communicate()
-    else:
-        return False
+        p = subprocess.Popen(['git','init','--quiet'], cwd=directory)
+        out, err = p.communicate()
+    # else:
+    #     return False
 
 def load_jupyter_server_extension(nb_app):
     """
