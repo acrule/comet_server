@@ -30,6 +30,7 @@ class CometHandler(IPythonHandler):
         post_data = self.get_json_body()
         os_path = self.contents_manager._get_os_path(path)
         save_changes(os_path, post_data)
+        self.finish(json.dumps({'msg': path}))
 
 def save_changes(os_path, action_data, track_git=True, track_versions=True, track_actions=True):
     """
@@ -79,11 +80,9 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True, trac
             if same_notebook(nb, dest_fname, True):
                 return
 
-        # TODO build way to read from external server
         # save the current file to the external volume for future comparison
         nbformat.write(nb, dest_fname, nbformat.NO_CONVERT)
 
-        # TODO build way to read from external server
         # and save a time-stamped version periodically
         if track_versions:
             if not saved_recently(version_dir):
@@ -191,7 +190,6 @@ def indices_to_check(action, selected_index, selected_indices, len_new):
         return [x for x in range(selected_index)] # look at cells 0 - i-1
     elif action in ['run-all-cells-below']:
         return [x for x in range(selected_index, len_new)] # look at all cells i+1 - n
-    # TODO figure out how to detect where previous cell inserted
     elif action in ['undo-cell-deletion']:
         return [x for x in range(0, len_new)]# scan all cells to look for 1st new cell
     elif action in ['merge-cell-with-previous-cell']:
