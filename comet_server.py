@@ -16,13 +16,12 @@ from notebook.base.handlers import IPythonHandler, path_regex
 class CometHandler(IPythonHandler):
 
     def get(self):
-        """check if extension loaded by visiting http://localhost:8888/comet"""
-
+        # check if extension loaded by visiting http://localhost:8888/comet
         self.finish('Comet is working.')
 
     def post(self, path=''):
         """
-        Recieve and save data about notebook actions
+        Save data about notebook actions
 
         path: (str) relative path to notebook requesting POST
         """
@@ -34,7 +33,7 @@ class CometHandler(IPythonHandler):
 
 def save_changes(os_path, action_data, track_git=True, track_versions=True, track_actions=True):
     """
-    save copy of notebook to an external drive (volume) like a USB key
+    Track notebook changes with git, periodic snapshots, and action tracking
 
     os_path: (str) path to notebook as saved on the operating system
     action_data: (dict) action data in the form of
@@ -52,11 +51,10 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True, trac
     if not volume:
         print("Could not find external volume to save Comet data")
     else:
-
         # get the notebook in the correct format (nbnode)
         nb = nbformat.from_dict(action_data['model'])
 
-        # get all our file names in order
+        # generate file names
         os_dir, fname = os.path.split(os_path)
         fname, file_ext = os.path.splitext(fname)
         dest_dir = os.path.join(volume, fname)
@@ -83,12 +81,11 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True, trac
         # save the current file to the external volume for future comparison
         nbformat.write(nb, dest_fname, nbformat.NO_CONVERT)
 
-        # and save a time-stamped version periodically
+        # save a time-stamped version periodically
         if track_versions:
             if not saved_recently(version_dir):
                 nbformat.write(nb, ver_fname, nbformat.NO_CONVERT)
 
-        # TODO find a way to supress .communicate() printing to stdout as it clutters the terminal with information about git
         # track file changes with git
         if track_git:
             verify_git_repository(dest_dir)
@@ -129,9 +126,6 @@ def record_action(action_data, dest_fname, db):
     """
 
     diff = get_diff(action_data, dest_fname)
-    # TODO remove print statement after debugging diff tracking
-    print("Diff: " + str(diff))
-
     conn = sqlite3.connect(db)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text, cell_index text, diff text)''') #id integer primary key autoincrement,
@@ -153,8 +147,8 @@ def get_diff(action_data, dest_fname):
     selected_index = action_data['index']
     selected_indices = action_data['indices']
 
-    check = indices_to_check(action, selected_index, selected_indices, len_new)
-    diff = check_selected_indices(check, action_data, dest_fname, True)
+    check_indices = indices_to_check(action, selected_index, selected_indices, len_new)
+    diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
 
     return diff
 
@@ -168,11 +162,15 @@ def indices_to_check(action, selected_index, selected_indices, len_new):
     len_new: (int) length in cells of the notebook we are comparing
     """
 
-    if action in ['run-cell','insert-cell-above','paste-cell-above','merge-cell-with-next-cell','change-cell-to-markdown','change-cell-to-code','change-cell-to-raw']:
+    if action in ['run-cell','insert-cell-above','paste-cell-above',
+                'merge-cell-with-next-cell','change-cell-to-markdown',
+                'change-cell-to-code','change-cell-to-raw','clear-cell-output',
+                'toggle-cell-output-collapsed','toggle-cell-output-scrolled']:
         return [selected_index]
     elif action in ['insert-cell-below','paste-cell-below']:
         return [selected_index + 1]
-    elif action in ['run-cell-and-insert-below','run-cell-and-select-next','split-cell-at-cursor','move-cell-down']:
+    elif action in ['run-cell-and-insert-below','run-cell-and-select-next',
+                    'split-cell-at-cursor','move-cell-down']:
         if selected_index >= len_new:
             return []
         elif selected_index == len_new-1:
@@ -184,23 +182,24 @@ def indices_to_check(action, selected_index, selected_indices, len_new):
             return []
         else:
             return [selected_index, selected_index-1]
-    elif action in ['run-all-cells']:
+    elif action in ['run-all-cells','restart-kernel-and-clear-output']:
         return [x for x in range(len_new)]
     elif action in ['run-all-cells-above']:
-        return [x for x in range(selected_index)] # look at cells 0 - i-1
+        return [x for x in range(selected_index)]
     elif action in ['run-all-cells-below']:
-        return [x for x in range(selected_index, len_new)] # look at all cells i+1 - n
+        return [x for x in range(selected_index, len_new)]
     elif action in ['undo-cell-deletion']:
         return [x for x in range(0, len_new)]# scan all cells to look for 1st new cell
     elif action in ['merge-cell-with-previous-cell']:
-        return [max([0, selected_index-1])] # i-1 if exists, otherwise i
+        return [max([0, selected_index-1])]
     elif action in ['merge-selected-cells','merge-cells']:
         return min(selected_indices)
     else:
         return []
 
-def check_selected_indices(indices, action_data, dest_fname, compare_outputs = False):
+def get_diff_at_indices(indices, action_data, dest_fname, compare_outputs = False):
     """
+    look for changes at particular indices
 
     indices: list of cell indices to compare
     action_data: new notebook data to compare
@@ -356,8 +355,6 @@ def verify_git_repository(directory):
     if '.git' not in os.listdir(directory):
         p = subprocess.Popen(['git','init','--quiet'], cwd=directory)
         out, err = p.communicate()
-    # else:
-    #     return False
 
 def load_jupyter_server_extension(nb_app):
     """
