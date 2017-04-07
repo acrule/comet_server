@@ -18,7 +18,7 @@ Comet expects all data to be saved to an external drive (e.g. a USB key) and wil
 
 The Comet server extension may be installed by downloading the `comet_server.py` file and placing it anywhere on your python path. We recommend saving it to the `site-packages` folder of your python distribution, such as `/anaconda/lib/python3.5/site-packages`. We will work on making this package pip installable in the future to ease installation.
 
-You will also need to change your `jupyter_notebook_config.py` file to tell Jupyter to run the extension. Typically this file resides ina folder called `.jupyter` on your home directory. You can reach this file by opening your terminal and typing:
+You will also need to change your `jupyter_notebook_config.py` file to tell Jupyter to run the extension. Typically this file resides in a folder called `.jupyter` on your home directory. On macOS, You can reach this file by opening your terminal and typing:
 
 ```
 open ~/.jupyter
