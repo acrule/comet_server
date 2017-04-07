@@ -14,9 +14,9 @@ Comet tracks this information in three ways:
 ## Installation
 Comet is a research tool designed to help scientists in human-computer interaction better understand how Jupyter Notebooks  evolve over time. It is primarily a recording tool with very limited support for visualizing or reviewing the recorded data.
 
-Comet expects all data to be saved to an external drive (e.g. a USB key) and will not run unless it detects a mounted drive with a config file named "traces.cfg".
+Comet expects all data to be saved to an external drive (e.g. a USB key) and will not run unless it detects a mounted drive with a config file named `traces.cfg`.
 
-The Comet server extension may be installed by downloading the `comet_server.py` file and placing it anywhere on your python path. We recommend
+The Comet server extension may be installed by downloading the `comet_server.py` file and placing it anywhere on your python path. We recommend saving it to the `site-packages` folder of your python distribution, such as `/anaconda/lib/python3.5/site-packages`. We will work on making this package pip installable in the future to ease installation.
 
 You will also need to change your `jupyter_notebook_config.py` file to tell Jupyter to run the extension. Typically this file resides ina folder called `.jupyter` on your home directory. You can reach this file by opening your terminal and typing:
 
