@@ -4,14 +4,18 @@ Comet Server: Server extension paired with nbextension to track notebook use
 
 import os
 import json
-import pickle
-import subprocess
 import datetime
-import sqlite3
 
 import nbformat
 from notebook.utils import url_path_join
 from notebook.base.handlers import IPythonHandler, path_regex
+
+from comet_diff import get_diff_at_indices
+from comet_git import verify_git_repository, git_commit
+from comet_handler import CometHandler
+from comet_sqlite import record_action_to_db
+from comet_volume import find_storage_volume
+
 
 class CometHandler(IPythonHandler):
 
@@ -31,7 +35,9 @@ class CometHandler(IPythonHandler):
         save_changes(os_path, post_data)
         self.finish(json.dumps({'msg': path}))
 
-def save_changes(os_path, action_data, track_git=True, track_versions=True, track_actions=True):
+
+def save_changes(os_path, action_data, track_git=True, track_versions=True,
+                track_actions=True):
     """
     Track notebook changes with git, periodic snapshots, and action tracking
 
@@ -48,11 +54,13 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True, trac
     """
 
     volume = find_storage_volume()
+
     if not volume:
         print("Could not find external volume to save Comet data")
+
     else:
         # get the notebook in the correct format (nbnode)
-        nb = nbformat.from_dict(action_data['model'])
+        current_nb = nbformat.from_dict(action_data['model'])
 
         # generate file names
         os_dir, fname = os.path.split(os_path)
@@ -71,257 +79,33 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True, trac
 
         # save information about the action to an sqlite database
         if track_actions:
-            record_action(action_data, dest_fname, dbname)
+            record_action_to_db(action_data, dest_fname, dbname)
 
         # save file versions and check for changes only if different from last notebook
         if os.path.isfile(dest_fname):
-            if same_notebook(nb, dest_fname, True):
+            cells_to_check = list(range(len(nb['cells']))) # check all cells
+            diff = get_diff_at_indices(cells_to_check, nb, dest_fname, True)
+            if not diff:
                 return
 
         # save the current file to the external volume for future comparison
-        nbformat.write(nb, dest_fname, nbformat.NO_CONVERT)
+        nbformat.write(current_nb, dest_fname, nbformat.NO_CONVERT)
 
         # save a time-stamped version periodically
         if track_versions:
-            if not saved_recently(version_dir):
-                nbformat.write(nb, ver_fname, nbformat.NO_CONVERT)
+            if not was_saved_recently(version_dir):
+                nbformat.write(current_nb, ver_fname, nbformat.NO_CONVERT)
 
         # track file changes with git
         if track_git:
             verify_git_repository(dest_dir)
-            p1 = subprocess.Popen(["git", "add", fname + ".ipynb"], cwd=dest_dir)
-            out, err = p1.communicate()
-            p2 = subprocess.Popen(["git", "commit", "-m", "'Commit'", '--quiet'], cwd=dest_dir)
+            git_commit(fname, dest_dir)
 
-# TODO make more general so can save to any directory, not just mounted volumes (e.g., don't use os.path.ismount)
-def find_storage_volume(search_dir = '/Volumes', namefilter="", key_file="traces.cfg"):
-    """
-    Check if external drive is mounted before saving version files, looking for
-    drives with a particular name, key file, or both
-
-    search_dir: (str) dir to look for storage dir
-    namefilter: (str) substring of volume name authenticating storage dir
-    key_file: (str) file authenticating storage dir
-    """
-    for d in os.listdir(search_dir):
-        if namefilter in d:
-            volume = os.path.join(search_dir, d)
-            if (os.path.ismount(volume)):
-                try:
-                    subdirs = os.listdir(volume)
-                    for fname in subdirs:
-                        if key_file == fname:
-                            return volume
-                except:
-                    pass
-    return False
-
-def record_action(action_data, dest_fname, db):
-    """
-    save action to sqlite database
-
-    action_data: (dict) data about action, see above for more details
-    dest_fname: (str) full path to where file is saved on volume
-    db: (str) path to sqlite database
-    """
-
-    diff = get_diff(action_data, dest_fname)
-    conn = sqlite3.connect(db)
-    c = conn.cursor()
-    c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text, cell_index text, diff text)''') #id integer primary key autoincrement,
-    tuple_action = (str(action_data['time']), action_data['name'], str(action_data['index']), pickle.dumps(diff)) #pickle.dumps(action_data['cell']))
-    c.execute('INSERT INTO actions VALUES (?,?,?,?)', tuple_action)
-    conn.commit()
-    conn.close()
-
-def get_diff(action_data, dest_fname):
-    """
-    Return a dictionary of all the new cells
-
-    action_data: (dict) data about the action, see above for more details
-    dest_fname: (str) full path to where file is saved on volume
-    """
-
-    len_new = len(action_data['model']['cells'])
-    action = action_data['name']
-    selected_index = action_data['index']
-    selected_indices = action_data['indices']
-
-    check_indices = indices_to_check(action, selected_index, selected_indices, len_new)
-    diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
-
-    return diff
-
-def indices_to_check(action, selected_index, selected_indices, len_new):
-    """
-    Find what notebook cells to check for changes based on the type of action
-
-    action: (str) action name
-    selected_index: (int) single selected cell
-    selected_indices: (list of ints) all selected cells
-    len_new: (int) length in cells of the notebook we are comparing
-    """
-
-    if action in ['run-cell','insert-cell-above','paste-cell-above',
-                'merge-cell-with-next-cell','change-cell-to-markdown',
-                'change-cell-to-code','change-cell-to-raw','clear-cell-output',
-                'toggle-cell-output-collapsed','toggle-cell-output-scrolled']:
-        return [selected_index]
-    elif action in ['insert-cell-below','paste-cell-below']:
-        return [selected_index + 1]
-    elif action in ['run-cell-and-insert-below','run-cell-and-select-next',
-                    'split-cell-at-cursor','move-cell-down']:
-        if selected_index >= len_new:
-            return []
-        elif selected_index == len_new-1:
-            return [selected_index]
-        else:
-            return [selected_index, selected_index + 1]
-    elif action in ['move-cell-up']:
-        if selected_index == 0:
-            return []
-        else:
-            return [selected_index, selected_index-1]
-    elif action in ['run-all-cells','restart-kernel-and-clear-output']:
-        return [x for x in range(len_new)]
-    elif action in ['run-all-cells-above']:
-        return [x for x in range(selected_index)]
-    elif action in ['run-all-cells-below']:
-        return [x for x in range(selected_index, len_new)]
-    elif action in ['undo-cell-deletion']:
-        return [x for x in range(0, len_new)]# scan all cells to look for 1st new cell
-    elif action in ['merge-cell-with-previous-cell']:
-        return [max([0, selected_index-1])]
-    elif action in ['merge-selected-cells','merge-cells']:
-        return min(selected_indices)
-    else:
-        return []
-
-def get_diff_at_indices(indices, action_data, dest_fname, compare_outputs = False):
-    """
-    look for changes at particular indices
-
-    indices: list of cell indices to compare
-    action_data: new notebook data to compare
-    dest_fname: name of file to compare to
-    """
-
-    changes = {}
-
-    # if there is no current notebook to compare to, assume this is the first
-    # time the notebook has been saved and don't save a diff since we will save
-    # a full version of the file
-    if not os.path.isfile(dest_fname):
-        return {}
-
-    cells1 = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
-    cells2 = action_data['model']['cells']
-
-    # special case for undo deletion since cell may insert at any part of the nb
-    # we simply look for the first cell that is not the same and return only
-    # that cell since all other cells afterwards will look different because
-    # of being shifted down by one index
-    if action_data['name'] == 'undo-cell-deletion':
-        for i in indices:
-            if i >= len(cells1):
-                changes[i] = cells2[i]
-                return changes
-            elif cells1[i]["source"] != cells2[i]["source"]:
-                changes[i] = cells2[i]
-                return changes
-    else:
-        for i in indices:
-            if i >= len(cells1):
-                changes[i] = cells2[i]
-            elif cells1[i]["cell_type"] != cells2[i]["cell_type"]:
-                changes[i] = cells2[i]
-            elif cells1[i]["source"] != cells2[i]["source"]:
-                changes[i] = cells2[i]
-            elif compare_outputs:
-                if cells1[i]["cell_type"] == "code" and cells2[i]["cell_type"] == "code":
-                    # ensure same number of outputs
-                    if len(cells1[i]['outputs']) != len(cells2[i]['outputs']):
-                        changes[i] = cells2[i]
-                    # and for all outputs for each cell
-                    elif len(cells1[i]['outputs']) > 0 and len(cells2[i]['outputs']) > 0:
-                        for j in range(len(cells1[i]['outputs'])):
-                            # check that the output type matches
-                            if cells1[i]['outputs'][j]['output_type'] != cells2[i]['outputs'][j]['output_type']:
-                                changes[i] = cells2[i]
-                            # and that the relevant data matches
-                            elif cells1[i]['outputs'][j]['output_type'] in ["display_data","execute_result"]:
-                                if cells1[i]['outputs'][j]['data'] != cells2[i]['outputs'][j]['data']:
-                                    changes[i] = cells2[i]
-                            elif cells1[i]['outputs'][j]['output_type'] == "stream":
-                                if cells1[i]['outputs'][j]['text'] != cells2[i]['outputs'][j]['text']:
-                                    changes[i] = cells2[i]
-                            elif cells1[i]['outputs'][j]['output_type'] == "error":
-                                if cells1[i]['outputs'][j]['evalue'] != cells2[i]['outputs'][j]['evalue']:
-                                    changes[i] = cells2[i]
-        return changes
-
-
-def same_notebook(nb1, nb2, compare_outputs = False):
-    """ Check if two Jupyter notebooks are essentailly the same
-    (e.g. same inputs, same outputs, or both)
-
-    nb1: model data for first notebook
-    nb2: file path to second notebook
-    compare_outputs: boolean of whether to compare outputs in addition to inputs """
-
-    cells1 = nb1['cells']
-    cells2 = nbformat.read(nb2, nbformat.NO_CONVERT)['cells']
-
-    # first check that number of cells match
-    if len(cells1) != len(cells2):
-        return False
-
-    # then check that the types of cells match
-    for i in range(len(cells1)):
-        if cells1[i]["cell_type"] != cells2[i]["cell_type"]:
-            return False
-
-    # then check that the cell input, or source, matches for each cell
-    for i in range(len(cells1)):
-        if cells1[i]["source"] != cells2[i]["source"]:
-            return False
-
-    # finally, check the outputs
-    #TODO disregard meaningless differences, such as different name of
-    # inline matplotlib graph due to being saved in a different memory
-    # locations (e.g., "0x10ccdf4a8" v. "0x10c9dc7b8")
-    if compare_outputs:
-        for i in range(len(cells1)):
-            # only compare code cell outputs
-            if cells1[i]["cell_type"] == "code" and cells2[i]["cell_type"] == "code":
-                # ensure same number of outputs
-                if len(cells1[i]['outputs']) != len(cells2[i]['outputs']):
-                    return False
-                # and for all outputs for each cell
-                if len(cells1[i]['outputs']) > 0 and len(cells2[i]['outputs']) > 0:
-                    for j in range(len(cells1[i]['outputs'])):
-                        # check that the output type matches
-                        if cells1[i]['outputs'][j]['output_type'] != cells2[i]['outputs'][j]['output_type']:
-                            return False
-
-                        # and that the relevant data matches
-                        if cells1[i]['outputs'][j]['output_type'] in ["display_data","execute_result"]:
-                            if cells1[i]['outputs'][j]['data'] != cells2[i]['outputs'][j]['data']:
-                                return False
-                        elif cells1[i]['outputs'][j]['output_type'] == "stream":
-                            if cells1[i]['outputs'][j]['text'] != cells2[i]['outputs'][j]['text']:
-                                return False
-                        elif cells1[i]['outputs'][j]['output_type'] == "error":
-                            if cells1[i]['outputs'][j]['evalue'] != cells2[i]['outputs'][j]['evalue']:
-                                return False
-
-    return True
-
-def saved_recently(version_dir, min_time=60):
+def was_saved_recently(version_dir, min_time=60):
     """ check if a previous version of the file has been saved recently
 
-    version_dir: dir to look for previous versions
-    min_time: minimum time in seconds allowed between saves """
+    version_dir: (str) dir to look for previous versions
+    min_time: (int) minimum time in seconds allowed between saves """
 
     #TODO check for better way to get most recent file in dir, maybe using glob
     #TODO filter file list to only include .ipynb
@@ -331,11 +115,7 @@ def saved_recently(version_dir, min_time=60):
         vname, vext = os.path.splitext(vname)
         last_time_saved = datetime.datetime.strptime(vname[-19:], "%Y-%m-%d-%H-%M-%S")
         delta = (datetime.datetime.now() - last_time_saved).seconds
-
-        if delta <= min_time:
-            return True
-        else:
-            return False
+        return delta <= min_time:
     else:
         return False
 
@@ -345,26 +125,16 @@ def create_dir(directory):
     except OSError:
         pass
 
-def verify_git_repository(directory):
-    """
-    check is directory is already a git repository
-
-    directory: directory to verify
-    """
-
-    if '.git' not in os.listdir(directory):
-        p = subprocess.Popen(['git','init','--quiet'], cwd=directory)
-        out, err = p.communicate()
-
 def load_jupyter_server_extension(nb_app):
     """
     Load the extension and set up routing to proper handler
 
-    nb_app: Jupyter Notebook Application
+    nb_app: (obj) Jupyter Notebook Application
     """
 
     nb_app.log.info('Comet Server extension loaded')
     web_app = nb_app.web_app
     host_pattern = '.*$'
-    route_pattern = url_path_join(web_app.settings['base_url'], r"/api/comet%s" % path_regex)
+    route_pattern = url_path_join(web_app.settings['base_url'],
+                                    r"/api/comet%s" % path_regex)
     web_app.add_handlers(host_pattern, [(route_pattern, CometHandler)])

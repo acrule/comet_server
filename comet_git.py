@@ -1,0 +1,22 @@
+"""
+Comet Server: Server extension paired with nbextension to track notebook use
+"""
+
+import os
+import subprocess
+
+def verify_git_repository(directory):
+    """
+    check is directory is already a git repository
+
+    directory: (str) directory to verify
+    """
+
+    if '.git' not in os.listdir(directory):
+        p = subprocess.Popen(['git','init','--quiet'], cwd=directory)
+        out, err = p.communicate()
+
+def git_commit(fname, dest_dir):
+    p1 = subprocess.Popen(["git", "add", fname + ".ipynb"], cwd=dest_dir)
+    out, err = p1.communicate()
+    p2 = subprocess.Popen(["git", "commit", "-m", "'Commit'", '--quiet'], cwd=dest_dir)
