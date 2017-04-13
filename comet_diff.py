@@ -2,6 +2,7 @@
 Comet Server: Server extension paired with nbextension to track notebook use
 """
 
+import os
 import nbformat
 
 def get_diff_at_indices(indices, action_data, dest_fname,
@@ -28,24 +29,25 @@ def get_diff_at_indices(indices, action_data, dest_fname,
     # the notebook, so simply return the first cell that is not the same
     if action_data['name'] == 'undo-cell-deletion':
         for i in indices:
-            if prior_nb[i]["source"] != current_nb[i]["source"]
-                or i >= len(prior_nb): # its a new cell at the end of the nb
+            if (prior_nb[i]["source"] != current_nb[i]["source"]
+                or i >= len(prior_nb)): # its a new cell at the end of the nb
                     diff[i] = current_nb[i]
                     return diff
 
     # for all other action types
     for i in indices:
         # compare source
-        if prior_nb[i]["cell_type"] != current_nb[i]["cell_type"]
-            or prior_nb[i]["source"] != current_nb[i]["source"]
-            or i >= len(prior_nb): # its a new cell at the end of the nb
+        if i >= len(prior_nb):
+            diff[i] = current_nb[i]
+        elif (prior_nb[i]["cell_type"] != current_nb[i]["cell_type"]
+            or prior_nb[i]["source"] != current_nb[i]["source"]): # its a new cell at the end of the nb
                 diff[i] = current_nb[i]
         # compare outputs
-        if compare_outputs and current_nb[i]["cell_type"] == "code":
+        elif compare_outputs and current_nb[i]["cell_type"] == "code":
             prior_outputs = prior_nb[i]['outputs']
-            current_ouptuts = current_nb[i]['outputs']
+            current_outputs = current_nb[i]['outputs']
 
-            if len(prior_outputs) != len(current_ouptuts):
+            if len(prior_outputs) != len(current_outputs):
                 diff[i] = current_nb[i]
             else:
                 for j in range(len(current_outputs)):
@@ -53,12 +55,12 @@ def get_diff_at_indices(indices, action_data, dest_fname,
                     if prior_outputs[j]['output_type'] != current_outputs[j]['output_type']:
                         diff[i] = current_nb[i]
                     # and that the relevant data matches
-                    elif (prior_outputs[j]['output_type'] in ["display_data","execute_result"]
+                    elif ((prior_outputs[j]['output_type'] in ["display_data","execute_result"]
                         and prior_outputs[j]['data'] != current_outputs[j]['data'])
                         or (prior_outputs[j]['output_type'] == "stream"
                         and prior_outputs[j]['text'] != current_outputs[j]['text'])
                         or (prior_outputs[j]['output_type'] == "error"
-                        and prior_outputs[j]['evalue'] != current_outputs[j]['evalue']):
+                        and prior_outputs[j]['evalue'] != current_outputs[j]['evalue'])):
                             diff[i] = current_nb[i]
     return diff
 

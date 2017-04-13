@@ -5,7 +5,7 @@ Comet Server: Server extension paired with nbextension to track notebook use
 import pickle
 import sqlite3
 
-from comet_diff import get_diff_at_indices, indices_to_check
+from comet_server.comet_diff import get_diff_at_indices, indices_to_check
 
 def record_action_to_db(action_data, dest_fname, db):
     """

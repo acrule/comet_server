@@ -10,11 +10,10 @@ import nbformat
 from notebook.utils import url_path_join
 from notebook.base.handlers import IPythonHandler, path_regex
 
-from comet_diff import get_diff_at_indices
-from comet_git import verify_git_repository, git_commit
-from comet_handler import CometHandler
-from comet_sqlite import record_action_to_db
-from comet_volume import find_storage_volume
+from comet_server.comet_diff import get_diff_at_indices
+from comet_server.comet_git import verify_git_repository, git_commit
+from comet_server.comet_sqlite import record_action_to_db
+from comet_server.comet_volume import find_storage_volume
 
 
 class CometHandler(IPythonHandler):
@@ -83,8 +82,8 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
 
         # save file versions and check for changes only if different from last notebook
         if os.path.isfile(dest_fname):
-            cells_to_check = list(range(len(nb['cells']))) # check all cells
-            diff = get_diff_at_indices(cells_to_check, nb, dest_fname, True)
+            cells_to_check = list(range(len(current_nb['cells']))) # check all cells
+            diff = get_diff_at_indices(cells_to_check, action_data, dest_fname, True)
             if not diff:
                 return
 
@@ -115,7 +114,7 @@ def was_saved_recently(version_dir, min_time=60):
         vname, vext = os.path.splitext(vname)
         last_time_saved = datetime.datetime.strptime(vname[-19:], "%Y-%m-%d-%H-%M-%S")
         delta = (datetime.datetime.now() - last_time_saved).seconds
-        return delta <= min_time:
+        return delta <= min_time
     else:
         return False
 
