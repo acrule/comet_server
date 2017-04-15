@@ -28,9 +28,10 @@ def record_action_to_db(action_data, dest_fname, db):
     conn = sqlite3.connect(db)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text,
-                cell_index text, diff text)''') #id integer primary key autoincrement,
+                cell_index integer, selected_cells text, diff text)''') #id integer primary key autoincrement,
     tuple_action = (str(action_data['time']), action_data['name'],
-                    str(action_data['index']), pickle.dumps(diff))
-    c.execute('INSERT INTO actions VALUES (?,?,?,?)', tuple_action)
+                    str(action_data['index']), str(selected_indices),
+                    pickle.dumps(diff))
+    c.execute('INSERT INTO actions VALUES (?,?,?,?,?)', tuple_action)
     conn.commit()
     conn.close()
