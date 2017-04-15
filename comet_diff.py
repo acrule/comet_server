@@ -106,5 +106,7 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
         return [max([0, selected_index-1])]
     elif action in ['merge-selected-cells','merge-cells']:
         return min(selected_indices)
+    elif action in ['restart-kernel-and-run-all-cells']:
+        return [x for x in range(0, len_current)]
     else:
         return []
