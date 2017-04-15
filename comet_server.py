@@ -68,7 +68,7 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
         version_dir = os.path.join(dest_dir, "versions")
         dbname = os.path.join(dest_dir, fname + ".db")
         dest_fname = os.path.join(dest_dir, fname + ".ipynb")
-        date_string = datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S")
+        date_string = datetime.datetime.now().strftime("-%Y-%m-%d-%H-%M-%S-%f")
         ver_fname = os.path.join(version_dir, fname + date_string + ".ipynb")
 
         # if needed, create storage directories on the external volume
@@ -112,7 +112,7 @@ def was_saved_recently(version_dir, min_time=60):
     if len(versions) > 0:
         vdir, vname = os.path.split(versions[-1])
         vname, vext = os.path.splitext(vname)
-        last_time_saved = datetime.datetime.strptime(vname[-19:], "%Y-%m-%d-%H-%M-%S")
+        last_time_saved = datetime.datetime.strptime(vname[-26:], "%Y-%m-%d-%H-%M-%S-%f")
         delta = (datetime.datetime.now() - last_time_saved).seconds
         return delta <= min_time
     else:
