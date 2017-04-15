@@ -82,13 +82,13 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
     elif action in ['insert-cell-below','paste-cell-below']:
         return [selected_index + 1]
     elif action in ['run-cell-and-insert-below','run-cell-and-select-next',
-                    'split-cell-at-cursor','move-cell-down']:
-        if selected_index >= len_current:
-            return []
-        elif selected_index == len_current-1:
-            return [selected_index]
-        else:
+                    'split-cell-at-cursor']:
+        return [selected_index, selected_index + 1]
+    elif action in ['move-cell-down']:
+        if selected_index < len_current-1:
             return [selected_index, selected_index + 1]
+        else:
+            return []
     elif action in ['move-cell-up']:
         if selected_index == 0:
             return []
