@@ -25,6 +25,10 @@ def record_action_to_db(action_data, dest_fname, db):
                                     len_current)
     diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
 
+    # only save unselect-cell actions if the cell content has changed during selection
+    if action == 'unselect-cell' and diff == {}:
+        return
+
     conn = sqlite3.connect(db)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text,
