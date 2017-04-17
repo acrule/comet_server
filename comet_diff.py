@@ -75,8 +75,9 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
     """
 
     if action in ['run-cell','insert-cell-above','paste-cell-above',
-                'merge-cell-with-next-cell','change-cell-to-markdown',
-                'change-cell-to-code','change-cell-to-raw','clear-cell-output',
+                'paste-cell-replace', 'merge-cell-with-next-cell',
+                'change-cell-to-markdown','change-cell-to-code',
+                'change-cell-to-raw','clear-cell-output',
                 'toggle-cell-output-collapsed','toggle-cell-output-scrolled']:
         return [selected_index]
     elif action in ['insert-cell-below','paste-cell-below']:
@@ -108,5 +109,5 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
         return min(selected_indices)
     elif action in ['restart-kernel-and-run-all-cells']:
         return [x for x in range(0, len_current)]
-    else:
+    else: # delete-cell, cut-cell, copy-cell
         return []
