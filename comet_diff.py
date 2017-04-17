@@ -34,6 +34,11 @@ def get_diff_at_indices(indices, action_data, dest_fname,
                     diff[i] = current_nb[i]
                     return diff
 
+    if action_data['name'] == 'copy-cell':
+        for i in indices:
+            diff[i] = current_nb[i]
+        return diff
+
     # for all other action types
     for i in indices:
         # compare source
@@ -77,7 +82,7 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
     if action in ['run-cell','insert-cell-above','paste-cell-above',
                 'paste-cell-replace', 'merge-cell-with-next-cell',
                 'change-cell-to-markdown','change-cell-to-code',
-                'change-cell-to-raw','clear-cell-output',
+                'change-cell-to-raw','clear-cell-output', 'unselect-cell',
                 'toggle-cell-output-collapsed','toggle-cell-output-scrolled']:
         return [selected_index]
     elif action in ['insert-cell-below','paste-cell-below']:
@@ -109,5 +114,7 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
         return min(selected_indices)
     elif action in ['restart-kernel-and-run-all-cells']:
         return [x for x in range(0, len_current)]
-    else: # delete-cell, cut-cell, copy-cell
+    elif action in ['copy-cell']:
+        return selected_indices
+    else: # delete-cell, cut-cell, copy-cell, select-cell
         return []
