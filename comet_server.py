@@ -7,6 +7,7 @@ import json
 import datetime
 
 import nbformat
+import nbconvert
 from notebook.utils import url_path_join
 from notebook.base.handlers import IPythonHandler, path_regex
 
@@ -18,9 +19,26 @@ from comet_volume import find_storage_volume
 
 class CometHandler(IPythonHandler):
 
-    def get(self):
-        # check if extension loaded by visiting http://localhost:8888/comet
-        self.finish('Comet is working.')
+    # check if extension loaded by visiting http://localhost:8888/api/comet
+    def get(self, path=''):
+        vol = '/Volumes/TRACES' + path
+        versions_path = os.path.join(vol, 'versions')
+
+        if os.path.isdir(versions_path):
+            versions = [f for f in os.listdir(versions_path) if os.path.isfile(os.path.join(versions_path, f)) and f[-6:] == '.ipynb']
+            if len(versions) > 0:
+                version_path = os.path.join(versions_path, versions[-3])
+                print(version_path)
+                nb = nbformat.read(version_path, nbformat.NO_CONVERT)
+
+                html_exporter = nbconvert.HTMLExporter()
+                # html_exporter.template_file = 'basic'
+                (body, resources) = html_exporter.from_notebook_node(nb)
+                self.finish(body)
+            else:
+                self.finish('<h1>%s</h1> There is no data saved for %s' % path, path)
+        else:
+            self.finish('<h1>%s</h1> There is no data saved for %s' % path, path)
 
     def post(self, path=''):
         """
