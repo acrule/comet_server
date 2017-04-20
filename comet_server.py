@@ -30,7 +30,7 @@ class CometHandler(IPythonHandler):
                 if os.path.isfile(os.path.join(versions_path, f))
                 and f[-6:] == '.ipynb']
 
-            html = get_html(versions)
+            html = self.get_html(versions)
             if  '<body></body>' not in html:    #i.e. if there is any body
                 self.finish(html)
             else:
@@ -50,7 +50,7 @@ class CometHandler(IPythonHandler):
         save_changes(os_path, post_data)
         self.finish(json.dumps({'msg': path}))
 
-    def get_html(versions):
+    def get_html(self, versions):
         html = '<html><head><style>\
                 body{ width: 20000px;}\
                 .wrap { width: 320px; height: 4000px; padding: 0; overflow: hidden; float: left;}\

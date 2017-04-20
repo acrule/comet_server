@@ -26,7 +26,8 @@ def record_action_to_db(action_data, dest_fname, db):
     diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
 
     # only save unselect-cell actions if the cell content has changed during selection
-    if action == 'unselect-cell' and diff == {}:
+    if action in ['unselect-cell','paste-cell-below', 
+                    'paste-cell-above', 'paste-cell-replace'] and diff == {}:
         return
 
     conn = sqlite3.connect(db)

@@ -100,7 +100,8 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
             return []
         else:
             return [selected_index, selected_index-1]
-    elif action in ['run-all-cells','restart-kernel-and-clear-output']:
+    elif action in ['run-all-cells','restart-kernel-and-clear-output',
+                    'confirm-restart-kernel-and-run-all-cells']:
         return [x for x in range(len_current)]
     elif action in ['run-all-cells-above']:
         return [x for x in range(selected_index)]
@@ -112,8 +113,6 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
         return [max([0, selected_index-1])]
     elif action in ['merge-selected-cells','merge-cells']:
         return min(selected_indices)
-    elif action in ['restart-kernel-and-run-all-cells']:
-        return [x for x in range(0, len_current)]
     elif action in ['copy-cell']:
         return selected_indices
     else: # delete-cell, cut-cell, copy-cell, select-cell
