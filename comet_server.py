@@ -3,6 +3,7 @@ Comet Server: Server extension paired with nbextension to track notebook use
 """
 
 import os
+import cgi
 import json
 import datetime
 
@@ -25,20 +26,17 @@ class CometHandler(IPythonHandler):
         versions_path = os.path.join(vol, 'versions')
 
         if os.path.isdir(versions_path):
-            versions = [f for f in os.listdir(versions_path) if os.path.isfile(os.path.join(versions_path, f)) and f[-6:] == '.ipynb']
-            if len(versions) > 0:
-                version_path = os.path.join(versions_path, versions[-3])
-                print(version_path)
-                nb = nbformat.read(version_path, nbformat.NO_CONVERT)
+            versions = [f for f in os.listdir(versions_path)
+                if os.path.isfile(os.path.join(versions_path, f))
+                and f[-6:] == '.ipynb']
 
-                html_exporter = nbconvert.HTMLExporter()
-                # html_exporter.template_file = 'basic'
-                (body, resources) = html_exporter.from_notebook_node(nb)
-                self.finish(body)
+            html = get_html(versions)
+            if  '<body></body>' not in html:    #i.e. if there is any body
+                self.finish(html)
             else:
-                self.finish('<h1>%s</h1> There is no data saved for %s' % path, path)
+                self.finish('<h1>No Data</h1> There is no data saved for %s' % path)
         else:
-            self.finish('<h1>%s</h1> There is no data saved for %s' % path, path)
+            self.finish('<h1>No Data</h1> There is no data saved for %s' % path)
 
     def post(self, path=''):
         """
@@ -52,6 +50,37 @@ class CometHandler(IPythonHandler):
         save_changes(os_path, post_data)
         self.finish(json.dumps({'msg': path}))
 
+    def get_html(versions):
+        html = '<html><head><style>\
+                body{ width: 20000px;}\
+                .wrap { width: 320px; height: 4000px; padding: 0; overflow: hidden; float: left;}\
+                .frame { width: 1280px; height: 12000px; border: 1px solid black}\
+                .frame { \
+                -moz-transform: scale(0.25); \
+                -moz-transform-origin: 0 0; \
+                -o-transform: scale(0.25); \
+                -o-transform-origin: 0 0; \
+                -webkit-transform: scale(0.25); \
+                -webkit-transform-origin: 0 0; \
+                } \
+                </style></head><body>'
+
+        for v in versions:
+            nb_path = os.path.join(versions_path, v)
+            html_path = nb_path[:-6] + '.html'
+
+            html_exporter = nbconvert.HTMLExporter()
+            (body, resources) = html_exporter.from_file(nb_path)
+            escaped_html = cgi.escape(body, True)
+
+            frame = '<div class="wrap"> \
+                    <iframe class="frame" \
+                    srcdoc=\"%s\"></iframe></div>' % escaped_html
+
+            html = html + frame
+
+        html = html + '</body></html>'
+        return html
 
 def save_changes(os_path, action_data, track_git=True, track_versions=True,
                 track_actions=True):
@@ -126,7 +155,8 @@ def was_saved_recently(version_dir, min_time=60):
 
     #TODO check for better way to get most recent file in dir, maybe using glob
     #TODO filter file list to only include .ipynb
-    versions = [f for f in os.listdir(version_dir) if os.path.isfile(os.path.join(version_dir, f))]
+    versions = [f for f in os.listdir(version_dir)
+        if os.path.isfile(os.path.join(version_dir, f)) and f[-6:] == '.ipynb']
     if len(versions) > 0:
         vdir, vname = os.path.split(versions[-1])
         vname, vext = os.path.splitext(vname)
