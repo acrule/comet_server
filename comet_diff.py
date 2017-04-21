@@ -25,20 +25,6 @@ def get_diff_at_indices(indices, action_data, dest_fname,
     prior_nb = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
     current_nb = action_data['model']['cells']
 
-    # Special case for undo-cell-deletion. The cell may insert at any part of
-    # the notebook, so simply return the first cell that is not the same
-    if action_data['name'] == 'undo-cell-deletion':
-        for i in indices:
-            if (prior_nb[i]["source"] != current_nb[i]["source"]
-                or i >= len(prior_nb)): # its a new cell at the end of the nb
-                    diff[i] = current_nb[i]
-                    return diff
-
-    if action_data['name'] == 'copy-cell':
-        for i in indices:
-            diff[i] = current_nb[i]
-        return diff
-
     # for all other action types
     for i in indices:
         # compare source
@@ -79,13 +65,12 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
     len_current: (int) length in cells of the notebook we are comparing
     """
 
-    if action in ['run-cell','insert-cell-above','paste-cell-above',
-                'paste-cell-replace', 'merge-cell-with-next-cell',
-                'change-cell-to-markdown','change-cell-to-code',
-                'change-cell-to-raw','clear-cell-output', 'unselect-cell',
+    if action in ['run-cell','insert-cell-above','paste-cell-replace', 'paste-cell-above',
+                'merge-cell-with-next-cell', 'unselect-cell', 'clear-cell-output',
+                'change-cell-to-markdown','change-cell-to-code', 'change-cell-to-raw',
                 'toggle-cell-output-collapsed','toggle-cell-output-scrolled']:
         return [selected_index]
-    elif action in ['insert-cell-below','paste-cell-below']:
+    elif action in ['insert-cell-below', 'paste-cell-below']:
         return [selected_index + 1]
     elif action in ['run-cell-and-insert-below','run-cell-and-select-next',
                     'split-cell-at-cursor']:

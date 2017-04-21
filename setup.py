@@ -7,6 +7,7 @@ setup(
                 'comet_diff.py',
                 'comet_git.py',
                 'comet_sqlite.py',
-                'comet_volume.py'],
+                'comet_volume.py',
+                'comet_viewer.py'],
     url = 'https://github.com/activityhistory/comet_server'
 )

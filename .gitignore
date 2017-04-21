@@ -3,3 +3,4 @@
 dist/
 build/
 comet_server.egg_info/
+comet_server.egg-info/

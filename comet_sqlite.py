@@ -2,8 +2,10 @@
 Comet Server: Server extension paired with nbextension to track notebook use
 """
 
+import os
 import pickle
 import sqlite3
+import nbformat
 
 from comet_diff import get_diff_at_indices, indices_to_check
 
@@ -14,29 +16,57 @@ def record_action_to_db(action_data, dest_fname, db):
     action_data: (dict) data about action, see above for more details
     dest_fname: (str) full path to where file is saved on volume
     db: (str) path to sqlite database
-    """
+    """    
 
-    action = action_data['name']
-    selected_index = action_data['index']
-    selected_indices = action_data['indices']
-    len_current = len(action_data['model']['cells'])
+    # handle edge cases of copy-cell and undo-cell-deletion events
+    diff = get_action_diff(action_data, dest_fname)
 
-    check_indices = indices_to_check(action, selected_index, selected_indices,
-                                    len_current)
-    diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
-
-    # only save unselect-cell actions if the cell content has changed during selection
-    if action in ['unselect-cell','paste-cell-below', 
-                    'paste-cell-above', 'paste-cell-replace'] and diff == {}:
+    # prevent saving certain events that had no effect
+    # ,'paste-cell-below','paste-cell-above', 'paste-cell-replace'        
+    if action_data['name'] in ['unselect-cell'] and diff == {}: 
         return
 
+    # save the data to the database
     conn = sqlite3.connect(db)
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text,
                 cell_index integer, selected_cells text, diff text)''') #id integer primary key autoincrement,
     tuple_action = (str(action_data['time']), action_data['name'],
-                    str(action_data['index']), str(selected_indices),
+                    str(action_data['index']), str(action_data['indices']),
                     pickle.dumps(diff))
     c.execute('INSERT INTO actions VALUES (?,?,?,?,?)', tuple_action)
     conn.commit()
     conn.close()
+    
+def get_action_diff(action_data, dest_fname):
+    if not os.path.isfile(dest_fname):
+        return {}
+    
+    diff = {} 
+    action = action_data['name']
+    selected_index = action_data['index']
+    selected_indices = action_data['indices']
+    current_nb = action_data['model']['cells']
+    len_current = len(current_nb)
+    prior_nb = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
+    
+    check_indices = indices_to_check(action, selected_index, selected_indices,
+                                    len_current)
+
+    # if it is a copy action, save the copied cells as the diff
+    if action in ['copy-cell']:
+        for i in check_indices:
+            diff[i] = current_nb[i]
+
+    # Special case for undo-cell-deletion. The cell may insert at any part of
+    # the notebook, so simply return the first cell that is not the same
+    elif action in ['undo-cell-deletion']:
+        for i in range(len_current):
+            if (prior_nb[i]["source"] != current_nb[i]["source"]
+                or i >= len(prior_nb)): # its a new cell at the end of the nb
+                    diff[i] = current_nb[i]
+                    return diff
+    else:
+        diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
+
+    return diff

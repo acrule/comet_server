@@ -26,3 +26,9 @@ def find_storage_volume(search_dir = '/Volumes', name_filter="",
         except:
             raise
     return False
+
+def create_dir(directory):
+    try:
+        os.makedirs(directory)
+    except OSError:
+        pass
