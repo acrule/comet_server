@@ -28,6 +28,8 @@ def get_diff_at_indices(indices, action_data, dest_fname,
     # for all other action types
     for i in indices:
         # compare source
+        if i >= len(current_nb):
+            break # don't compare cells that don't exist
         if i >= len(prior_nb):
             diff[i] = current_nb[i]
         elif (prior_nb[i]["cell_type"] != current_nb[i]["cell_type"]
@@ -55,7 +57,7 @@ def get_diff_at_indices(indices, action_data, dest_fname,
                             diff[i] = current_nb[i]
     return diff
 
-def indices_to_check(action, selected_index, selected_indices, len_current):
+def indices_to_check(action, selected_index, selected_indices, len_current, len_prior):
     """
     Find what notebook cells to check for changes based on the type of action
 
@@ -65,13 +67,25 @@ def indices_to_check(action, selected_index, selected_indices, len_current):
     len_current: (int) length in cells of the notebook we are comparing
     """
 
-    if action in ['run-cell','insert-cell-above','paste-cell-replace', 'paste-cell-above',
-                'merge-cell-with-next-cell', 'unselect-cell', 'clear-cell-output',
-                'change-cell-to-markdown','change-cell-to-code', 'change-cell-to-raw',
-                'toggle-cell-output-collapsed','toggle-cell-output-scrolled']:
+    if action in ['run-cell', 'insert-cell-above', 'merge-cell-with-next-cell',
+                 'unselect-cell', 'clear-cell-output', 'change-cell-to-markdown',
+                 'change-cell-to-code', 'change-cell-to-raw',
+                 'toggle-cell-output-collapsed', 'toggle-cell-output-scrolled']:
         return [selected_index]
-    elif action in ['insert-cell-below', 'paste-cell-below']:
+    elif action in ['insert-cell-below']:
         return [selected_index + 1]
+    elif action in ['paste-cell-above']:
+        start = selected_indices[0]
+        num_inserted = len_current - len_prior  
+        return [x for x in range(start, start + num_inserted)] 
+    elif action in ['paste-cell-below']:
+        start = selected_indices[-1] + 1 # first cell after last selected
+        num_inserted = len_current - len_prior
+        return [x for x in range(start, start + num_inserted)]    
+    elif action in ['paste-cell-replace']:     
+        start = selected_indices[0]
+        num_inserted = len_current - len_prior + len(selected_indices)
+        return [x for x in range(start, start + num_inserted)]
     elif action in ['run-cell-and-insert-below','run-cell-and-select-next',
                     'split-cell-at-cursor']:
         return [selected_index, selected_index + 1]

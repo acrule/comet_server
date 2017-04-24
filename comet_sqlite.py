@@ -49,14 +49,20 @@ def get_action_diff(action_data, dest_fname):
     current_nb = action_data['model']['cells']
     len_current = len(current_nb)
     prior_nb = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
+    len_prior = len(prior_nb)
     
     check_indices = indices_to_check(action, selected_index, selected_indices,
-                                    len_current)
+                                    len_current, len_prior)
+    print(check_indices)
 
-    # if it is a copy action, save the copied cells as the diff
-    if action in ['copy-cell']:
+    # if it is a cut or copy action, save the copied cells as the diff
+    if action in ['cut-cell', 'copy-cell', 'paste-cell-above', 
+                'paste-cell-below', 'paste-cell-replace']:
         for i in check_indices:
             diff[i] = current_nb[i]
+        print(diff)
+            
+    
 
     # Special case for undo-cell-deletion. The cell may insert at any part of
     # the notebook, so simply return the first cell that is not the same
