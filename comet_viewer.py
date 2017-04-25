@@ -4,6 +4,7 @@ Comet Server: Server extension paired with nbextension to track notebook use
 
 import os
 import cgi
+import nbconvert
 
 def get_viewer_html(data_dir):
     html = '<html><head><style>\

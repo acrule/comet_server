@@ -69,13 +69,16 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
 
     # actions that apply to all selected cells
     if action in['run-cell', 'clear-cell-output', 'change-cell-to-markdown', 
-                'change-cell-to-code', 'change-cell-to-raw', 'copy-cell',
+                'change-cell-to-code', 'change-cell-to-raw', 
+                'copy-cell', 'cut-cell',
                 'toggle-cell-output-collapsed', 'toggle-cell-output-scrolled']:
-        return selected_indices
+        return [x for x in selected_indices]
         
     # actions that apply to all selected cells, and the next one
     elif action in ['run-cell-and-insert-below','run-cell-and-select-next']:
-        return selected_indices.append(selected_indices[-1] + 1)    
+        ind = [x for x in selected_indices]
+        ind.append(selected_indices[-1] + 1)
+        return ind
     
     # actions that apply to the cell before or after first or last selected cell
     elif action in ['insert-cell-above']:
@@ -100,14 +103,18 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
     # actions to move groups of cells up and down
     elif action in ['move-cell-down']:
         if selected_indices[-1] < len_current-1:
-            return selected_indices.append(selected_indices[-1] + 1)
+            ind = [x for x in selected_indices]
+            ind.append(selected_indices[-1] + 1)
+            return ind
         else:
             return []
     elif action in ['move-cell-up']:
         if selected_index == 0:
             return []
         else:
-            return selected_indices.append(selected_indices[0] - 1)
+            ind = [x for x in selected_indices]
+            ind.append(selected_indices[0] - 1)
+            return ind
     
     # split, merege, and selection
     elif action in ['merge-cell-with-next-cell', 'unselect-cell']:

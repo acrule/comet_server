@@ -21,8 +21,7 @@ def record_action_to_db(action_data, dest_fname, db):
     # handle edge cases of copy-cell and undo-cell-deletion events
     diff = get_action_diff(action_data, dest_fname)
 
-    # prevent saving certain events that had no effect
-    # ,'paste-cell-below','paste-cell-above', 'paste-cell-replace'        
+    # track when cells are edited but not executed and another cell clicked
     if action_data['name'] in ['unselect-cell'] and diff == {}: 
         return
 
@@ -63,11 +62,18 @@ def get_action_diff(action_data, dest_fname):
     # Special case for undo-cell-deletion. The cell may insert at any part of
     # the notebook, so simply return the first cell that is not the same
     elif action in ['undo-cell-deletion']:
-        for i in range(len_current):
-            if (prior_nb[i]["source"] != current_nb[i]["source"]
-                or i >= len(prior_nb)): # its a new cell at the end of the nb
-                    diff[i] = current_nb[i]
-                    return diff
+        num_inserted = len_current - len_prior        
+        if num_inserted > 0:
+            first_diff = 0
+            for i in range(len_current):
+                if (prior_nb[i]["source"] != current_nb[i]["source"]
+                    or i >= len(prior_nb)): # its a new cell at the end of the nb
+                    first_diff = i
+                    break
+            for j in range(first_diff, first_diff + num_inserted):
+                if j < len_current:
+                    diff[j] = current_nb[j]
+                    
     else:
         diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
 
