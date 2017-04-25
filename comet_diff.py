@@ -59,7 +59,7 @@ def get_diff_at_indices(indices, action_data, dest_fname,
 
 def indices_to_check(action, selected_index, selected_indices, len_current, len_prior):
     """
-    Find what notebook cells to check for changes based on the type of action
+    Identify which notebook cells may have changed based on the type of action
 
     action: (str) action name
     selected_index: (int) single selected cell
@@ -67,15 +67,25 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
     len_current: (int) length in cells of the notebook we are comparing
     """
 
-    if action in ['run-cell', 'insert-cell-above', 'merge-cell-with-next-cell',
-                 'unselect-cell', 'clear-cell-output', 'change-cell-to-markdown',
-                 'change-cell-to-code', 'change-cell-to-raw',
-                 'toggle-cell-output-collapsed', 'toggle-cell-output-scrolled']:
-        return [selected_index]
+    # actions that apply to all selected cells
+    if action in['run-cell', 'clear-cell-output', 'change-cell-to-markdown', 
+                'change-cell-to-code', 'change-cell-to-raw', 'copy-cell',
+                'toggle-cell-output-collapsed', 'toggle-cell-output-scrolled']:
+        return selected_indices
+        
+    # actions that apply to all selected cells, and the next one
+    elif action in ['run-cell-and-insert-below','run-cell-and-select-next']:
+        return selected_indices.append(selected_indices[-1] + 1)    
+    
+    # actions that apply to the cell before or after first or last selected cell
+    elif action in ['insert-cell-above']:
+        return [selected_indices[0]]       
     elif action in ['insert-cell-below']:
-        return [selected_index + 1]
+        return [selected_indices[-1] + 1]
+         
+    # actions that may insert multiple cells
     elif action in ['paste-cell-above']:
-        start = selected_indices[0]
+        start = selected_indices[0] # first cell in selection
         num_inserted = len_current - len_prior  
         return [x for x in range(start, start + num_inserted)] 
     elif action in ['paste-cell-below']:
@@ -83,36 +93,44 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
         num_inserted = len_current - len_prior
         return [x for x in range(start, start + num_inserted)]    
     elif action in ['paste-cell-replace']:     
-        start = selected_indices[0]
+        start = selected_indices[0] # first cell in selelction
         num_inserted = len_current - len_prior + len(selected_indices)
         return [x for x in range(start, start + num_inserted)]
-    elif action in ['run-cell-and-insert-below','run-cell-and-select-next',
-                    'split-cell-at-cursor']:
-        return [selected_index, selected_index + 1]
+    
+    # actions to move groups of cells up and down
     elif action in ['move-cell-down']:
-        if selected_index < len_current-1:
-            return [selected_index, selected_index + 1]
+        if selected_indices[-1] < len_current-1:
+            return selected_indices.append(selected_indices[-1] + 1)
         else:
             return []
     elif action in ['move-cell-up']:
         if selected_index == 0:
             return []
         else:
-            return [selected_index, selected_index-1]
-    elif action in ['run-all-cells','restart-kernel-and-clear-output',
-                    'confirm-restart-kernel-and-run-all-cells']:
-        return [x for x in range(len_current)]
-    elif action in ['run-all-cells-above']:
-        return [x for x in range(selected_index)]
-    elif action in ['run-all-cells-below']:
-        return [x for x in range(selected_index, len_current)]
-    elif action in ['undo-cell-deletion']:
-        return [x for x in range(0, len_current)]# scan all cells to look for 1st new cell
+            return selected_indices.append(selected_indices[0] - 1)
+    
+    # split, merege, and selection
+    elif action in ['merge-cell-with-next-cell', 'unselect-cell']:
+        return [selected_index]        
     elif action in ['merge-cell-with-previous-cell']:
         return [max([0, selected_index-1])]
     elif action in ['merge-selected-cells','merge-cells']:
         return min(selected_indices)
-    elif action in ['copy-cell']:
-        return selected_indices
-    else: # delete-cell, cut-cell, copy-cell, select-cell
+    elif action in ['split-cell-at-cursor']:
+        return [selected_indices[0], selected_index + 1]
+            
+    # actions applied to all cells in the notebook, or that could affect all cells
+    elif action in ['run-all-cells','restart-kernel-and-clear-output',
+                    'confirm-restart-kernel-and-run-all-cells', 
+                    'undo-cell-deletion']:
+        return [x for x in range(len_current)]
+    
+    # actions applied to all cells above or below the selected one    
+    elif action in ['run-all-cells-above']:
+        return [x for x in range(selected_index)]
+    elif action in ['run-all-cells-below']:
+        return [x for x in range(selected_index, len_current)]
+
+    # remaining acitons such as delete-cell, cut-cell
+    else: 
         return []
