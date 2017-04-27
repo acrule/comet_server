@@ -22,6 +22,10 @@ def record_action_to_db(action_data, dest_fname, db):
     diff = get_action_diff(action_data, dest_fname)
 
     # track when cells are edited but not executed and another cell clicked
+    if action_data['name'] in ['unselect-cell']:
+        print(action_data['index'])
+        print(diff)
+    
     if action_data['name'] in ['unselect-cell'] and diff == {}: 
         return
 

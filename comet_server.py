@@ -30,7 +30,7 @@ class CometHandler(IPythonHandler):
         
         data_dir = '/Volumes/TRACES' + path
         html = get_viewer_html(data_dir)
-        self.finish(html)
+        self.write(html)
 
     def post(self, path=''):
         """
