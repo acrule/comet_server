@@ -38,8 +38,23 @@ def get_viewer_html(data_dir):
             nb_path = os.path.join(version_dir, v)
             nb_cells = nbformat.read(nb_path, nbformat.NO_CONVERT)['cells']
             
+            # cells can have multiple outputs , each with a different type
+            # here we track the "highest" level output with 
+            # error> display_data > execute result > stream
             for c in nb_cells:
-                version_data['cells'].append(c.cell_type)
+                cell_type = c.cell_type
+                if c.cell_type == "code":
+                    output_types = [x.output_type for x in c.outputs]
+                    if "error" in output_types:
+                        cell_type = "error"
+                    elif "display_data" in output_types:
+                        cell_type = "display_data"
+                    elif "execute_result" in output_types:
+                        cell_type = "execute_result"
+                    elif "stream" in output_types:
+                        cell_type = "stream"
+                
+                version_data['cells'].append(cell_type)
             data['versions'].append(version_data)        
         
         html = """<!DOCTYPE html>\n
@@ -53,7 +68,7 @@ def get_viewer_html(data_dir):
             }\n
             \n
             .stat{
-                width: 320px;
+                width: 240px;
                 float: left;
             }
             </style>\n
@@ -129,7 +144,17 @@ def get_viewer_html(data_dir):
                     .attr("height", cellSize)\n
                     .attr("x", function(d, i){ return (j-1)*cellSize; })\n
                     .attr("y", function(d, i) { return i * cellSize; })\n
-                    .attr("fill", function(d) { if(d == "markdown"){return "steelblue";} else{return "gray"} })\n
+                    .attr("fill", function(d) { 
+                        type_colors = {
+                            "markdown": "#82b446",
+                            "code": "silver",
+                            "error": "#b44682",
+                            "stream": "grey",
+                            "execute_result": "grey",
+                            "display_data": "steelblue"
+                        }
+                        return type_colors[d]
+                     })\n
                     .attr("stroke", "white");\n
             });\n
             \n
