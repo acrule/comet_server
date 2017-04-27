@@ -9,6 +9,38 @@ import nbformat
 
 from comet_diff import get_diff_at_indices, indices_to_check
 
+def get_viewer_data(db):
+
+    conn = sqlite3.connect(db)
+    c = conn.cursor()
+    
+    c.execute("SELECT name FROM actions WHERE name = 'delete-cell' ")
+    rows = c.fetchall()
+    num_deletions = len(rows)
+    
+    # TODO how to count when multiple cells are selected and run, or run-all?
+    c.execute("SELECT name FROM actions WHERE name LIKE  'run-cell%' ")
+    rows = c.fetchall()
+    num_runs = len(rows)
+    
+    # TODO only need to selelct times
+    c.execute("SELECT time FROM actions")
+    rows = c.fetchall()
+    total_time = 0;
+    start_time = rows[0][0]
+    last_time = rows[0][0]
+    for i in range(1,len(rows)):
+        # 5 minutes
+        if (rows[i][0] - last_time) >= (5 * 60 * 1000) or i == len(rows) - 1:
+            total_time = total_time + last_time - start_time            
+            start_time = rows[i][0]
+            last_time = rows[i][0]
+        else:
+            last_time = rows[i][0]
+            
+    
+    return (num_deletions, num_runs, total_time/1000)
+
 def record_action_to_db(action_data, dest_fname, db):
     """
     save action to sqlite database
