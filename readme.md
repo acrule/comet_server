@@ -1,4 +1,4 @@
-# Comet
+# Comet (Server Extension)
 Comet is a Jupyter Notebook server extension that tracks changes to the notebook over time. It works in tandem with the [Comet notebook extension](https://github.com/activityhistory/comet). You must have both the server and notebook extension installed for the tracking to work properly since the notebook extension listens for events and send information to the server for processing.
 
 ![Comet Extension HistoryFlow Visualization](imgs/historyflow.png)  
