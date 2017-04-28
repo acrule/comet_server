@@ -81,6 +81,23 @@ def get_viewer_html(data_dir):
             \n
             var data = """ + str(data) + """\n
             \n
+            var maxLength = 0\n
+            for (i = 0; i < data.versions.length; i++){\n
+                maxLength = Math.max(data.versions[i].cells.length, maxLength)\n
+            }\n
+            \n
+            cellSize = Math.min(cellSize, width / data.versions.length)\n
+            \n
+            cellSize = Math.min(cellSize, height / maxLength)\n
+            \n            
+            var legend_colors = [\n
+                ["markdown", "#7da7ca"],\n
+                ["no output", "silver"],\n
+                ["text output", "grey"],\n  
+                ["graphical output", "#a7ca7d"],\n
+                ["error", "#ca7da7"]\n
+            ]\n
+            \n
             var title = d3.select("body")\n
                 .append("h1")\n
                 .text(data.name);\n
@@ -157,6 +174,29 @@ def get_viewer_html(data_dir):
                      })\n
                     .attr("stroke", "white");\n
             });\n
+            \n
+            var legend = svg.append('g')\n
+                .attr('transform', function(){return "translate(0," + (height - 100).toString() + ")"});\n
+            \n
+            legend.selectAll("rect.legend")\n
+                .data(legend_colors)\n
+                .enter().append("rect")\n
+                .attr("class", "legend")\n
+                .attr('x', 0)\n
+                .attr('y', function(d, i){return 16 * i})\n
+                .attr('width', 16)\n
+                .attr('height', 16)\n
+                .style("fill", function(d){return d[1];})\n
+                .attr('stroke', 'white');\n
+            \n
+            legend.selectAll("text.legend")\n
+                .data(legend_colors)\n
+                .enter().append("text")\n
+                .attr("class", "legend")\n
+                .attr('x', function(d, i){return 16 + 4})\n
+                .attr('y', function(d, i){return 16 * i + 12})\n
+                .text(function(d){ return d[0]; })
+                .attr('fill', '#666');\n            
             \n
             </script>\n
             </body>\n
