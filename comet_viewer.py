@@ -23,6 +23,7 @@ def get_viewer_html(data_dir):
                 'editTime': totalTime,
                 'numRuns': numRuns,
                 'numDeletions': numDeletions,
+                'gaps': [],
                 'versions':[]};
         
         versions = [f for f in os.listdir(version_dir)
@@ -30,6 +31,13 @@ def get_viewer_html(data_dir):
             and f[-6:] == '.ipynb']
 
         for i, v in enumerate(versions):
+            
+            if i > 0:
+                current_nb_time = datetime.datetime.strptime(v[-25:-6], "%Y-%m-%d-%H-%M-%S")
+                past_nb_time = datetime.datetime.strptime(versions[i-1][-25:-6], "%Y-%m-%d-%H-%M-%S")
+                time_diff = current_nb_time - past_nb_time
+                if time_diff.total_seconds() >= 15 * 60:
+                    data['gaps'].append(i)
             
             version_data = {'num': i,
                             'time': v[-26:],
@@ -86,7 +94,7 @@ def get_viewer_html(data_dir):
                 maxLength = Math.max(data.versions[i].cells.length, maxLength)\n
             }\n
             \n
-            cellSize = Math.min(cellSize, width / data.versions.length)\n
+            cellSize = Math.min(cellSize, width / (data.versions.length + data.gaps.length))\n
             \n
             cellSize = Math.min(cellSize, height / maxLength)\n
             \n            
@@ -159,7 +167,9 @@ def get_viewer_html(data_dir):
                     .enter().append("rect")\n
                     .attr("width", cellSize)\n
                     .attr("height", cellSize)\n
-                    .attr("x", function(d, i){ return (j-1)*cellSize; })\n
+                    .attr("x", function(d, i){\n
+                        var numGaps = data.gaps.filter(function(x){return x<=j}).length
+                        return (j-1+numGaps)*cellSize; })\n
                     .attr("y", function(d, i) { return i * cellSize; })\n
                     .attr("fill", function(d) { 
                         type_colors = {
