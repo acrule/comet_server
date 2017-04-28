@@ -146,12 +146,12 @@ def get_viewer_html(data_dir):
                     .attr("y", function(d, i) { return i * cellSize; })\n
                     .attr("fill", function(d) { 
                         type_colors = {
-                            "markdown": "#82b446",
+                            "markdown": "#7da7ca",
                             "code": "silver",
-                            "error": "#b44682",
+                            "error": "#ca7da7",
                             "stream": "grey",
                             "execute_result": "grey",
-                            "display_data": "steelblue"
+                            "display_data": "#a7ca7d"
                         }
                         return type_colors[d]
                      })\n
