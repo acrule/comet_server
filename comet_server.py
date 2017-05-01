@@ -106,8 +106,11 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
 
         # track file changes with git
         if track_git:
-            verify_git_repository(dest_dir)
-            git_commit(fname, dest_dir)
+            try:
+                verify_git_repository(dest_dir)
+                git_commit(fname, dest_dir)
+            except:
+                pass
 
 def was_saved_recently(version_dir, min_time=60):
     """ check if a previous version of the file has been saved recently
