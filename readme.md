@@ -1,11 +1,11 @@
 # Comet (Server Extension)
-Comet is a Jupyter Notebook server extension that tracks changes to the notebook over time. It works in tandem with the [Comet notebook extension](https://github.com/activityhistory/comet). You must have both the server and notebook extension installed for the tracking to work properly since the notebook extension listens for events and send information to the server for processing.
+Comet is a Jupyter Notebook server extension that tracks changes to the notebook over time. It works in tandem with the [Comet notebook extension](https://github.com/activityhistory/comet). You must have both the server and notebook extension installed for the tracking to work properly since the notebook extension listens for events and sends information to the server extension for processing.
 
 ![Comet Extension HistoryFlow Visualization](imgs/historyflow.png)  
 
 ## What Comet Tracks
 Comet tracks how your notebook changes over time. It does so by:
-1. tracking actions such as creating, deleting, moving, or executing cells
+1. tracking the occurrence of actions such as creating, deleting, moving, or executing cells
 2. tracking how your notebook changes as a result of these actions
 
 Comet tracks this information in three ways:
@@ -13,12 +13,12 @@ Comet tracks this information in three ways:
 2. periodically saving a full version of the notebook
 3. saving the name and time of every action to an sqlite database
 
-## Installation
-Comet is a research tool designed to help scientists in human-computer interaction better understand how Jupyter Notebooks  evolve over time. It is primarily a recording tool with very limited support for visualizing or reviewing the recorded data.
+Comet is a research tool designed to help scientists in human-computer interaction better understand how people use Jupyter Notebooks. It is primarily a recording tool with very limited support for visualizing or reviewing the recorded data.
 
+## Installation
 Comet expects all data to be saved to an external drive (e.g. a USB key) and will not run unless it detects a mounted drive with a config file named `traces.cfg`.
 
-The Comet server extension may be installed by downloading the entire repo and running `python setup.py install` to install the package. 
+The Comet server extension may be installed by downloading the entire repo, opening a terminal, navigating to folder containing the downloaded repo, the and running `python setup.py install` to install the package. 
 
 You will also need to change your `jupyter_notebook_config.py` file to tell Jupyter to run the extension. Typically this file resides in a folder called `.jupyter` on your home directory. On macOS, You can reach this file by opening your terminal and typing:
 
