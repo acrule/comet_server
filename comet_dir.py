@@ -5,6 +5,7 @@ Comet Server: Server extension paired with nbextension to track notebook use
 import os
 import json
 import datetime
+from hashlib import sha1
 
 def find_storage_dir():
     storage_dir = default_storage_dir()
@@ -42,3 +43,7 @@ def was_saved_recently(version_dir, min_time=60):
         return delta <= min_time
     else:
         return False
+        
+def hash_path(path):    
+    h = sha1(path.encode())
+    return h.hexdigest()[0:8]

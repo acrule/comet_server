@@ -3,6 +3,7 @@ Comet Server: Server extension paired with nbextension to track notebook use
 """
 
 import os
+import time
 import pickle
 import sqlite3
 import nbformat
@@ -50,28 +51,42 @@ def record_action_to_db(action_data, dest_fname, db):
     db: (str) path to sqlite database
     """    
 
-    # handle edge cases of copy-cell and undo-cell-deletion events
-    diff = get_action_diff(action_data, dest_fname)
+    # handle edge cases of copy-cell and undo-cell-deletion events    
+    diff = get_action_diff(action_data, dest_fname)        
 
     # track when cells are edited but not executed and another cell clicked
     if action_data['name'] in ['unselect-cell']:
-        print(action_data['index'])
-        print(diff)
+        print(action_data['index'])        
     
     if action_data['name'] in ['unselect-cell'] and diff == {}: 
         return
 
     # save the data to the database
+    start_time = time.time()                
     conn = sqlite3.connect(db)
+    conn_time = time.time()                
     c = conn.cursor()
     c.execute('''CREATE TABLE IF NOT EXISTS actions (time integer, name text,
                 cell_index integer, selected_cells text, diff text)''') #id integer primary key autoincrement,
+    table_time = time.time()                
     tuple_action = (str(action_data['time']), action_data['name'],
                     str(action_data['index']), str(action_data['indices']),
                     pickle.dumps(diff))
     c.execute('INSERT INTO actions VALUES (?,?,?,?,?)', tuple_action)
+    insert_time = time.time()
     conn.commit()
+    commit_time = time.time()
     conn.close()
+    end_time = time.time()
+    
+    # print(action_data['name'])
+    # print(end_time - commit_time)
+    # print(commit_time - insert_time)
+    # print(insert_time - table_time)
+    # print(table_time - conn_time)
+    # print(conn_time - start_time)
+    # print(end_time - start_time)
+    # print()
     
 def get_action_diff(action_data, dest_fname):
     if not os.path.isfile(dest_fname):

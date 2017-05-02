@@ -11,11 +11,9 @@ import nbformat
 from comet_sqlite import get_viewer_data
 
 def get_viewer_html(data_dir):
-                
     version_dir = os.path.join(data_dir, 'versions')
     filename = data_dir.split('/')[-1]
-    db = os.path.join(data_dir, filename + ".db")
-    
+    db = os.path.join(data_dir, filename + ".db")    
     numDeletions, numRuns, totalTime = get_viewer_data(db)
     
     if os.path.isdir(version_dir):            
@@ -33,8 +31,8 @@ def get_viewer_html(data_dir):
         for i, v in enumerate(versions):
             
             if i > 0:
-                current_nb_time = datetime.datetime.strptime(v[-25:-6], "%Y-%m-%d-%H-%M-%S")
-                past_nb_time = datetime.datetime.strptime(versions[i-1][-25:-6], "%Y-%m-%d-%H-%M-%S")
+                current_nb_time = datetime.datetime.strptime(v[-32:-6], "%Y-%m-%d-%H-%M-%S-%f")
+                past_nb_time = datetime.datetime.strptime(versions[i-1][-32:-6], "%Y-%m-%d-%H-%M-%S-%f")
                 time_diff = current_nb_time - past_nb_time
                 if time_diff.total_seconds() >= 15 * 60:
                     data['gaps'].append(i)

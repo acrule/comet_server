@@ -15,7 +15,7 @@ from notebook.base.handlers import IPythonHandler, path_regex
 from comet_diff import get_diff_at_indices
 from comet_git import verify_git_repository, git_commit
 from comet_sqlite import record_action_to_db
-from comet_dir import find_storage_dir, create_dir, was_saved_recently
+from comet_dir import find_storage_dir, create_dir, was_saved_recently, hash_path
 from comet_viewer import get_viewer_html
 
 class CometHandler(IPythonHandler):
@@ -25,9 +25,14 @@ class CometHandler(IPythonHandler):
         """
         Render a website visualizing the notebook's edit history
         path: (str) relative path to notebook requesting POST
-        """
+        """        
         
-        data_dir = find_storage_dir() + path
+        
+        os_path = self.contents_manager._get_os_path(path)
+        os_dir, fname = os.path.split(os_path)
+        hashed_path = hash_path(os_dir)
+        filename = path.split("/")[-1] # only
+        data_dir = os.path.join(find_storage_dir(), hashed_path, fname.split('.')[0])
         html = get_viewer_html(data_dir)
         self.write(html)
 
@@ -64,8 +69,11 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
     else:
         # generate file names
         os_dir, fname = os.path.split(os_path)
+        # get unique identifier for os_path so we can distiguished files with
+        # the same name stored in separate folders
+        hashed_path = hash_path(os_dir)
         fname, file_ext = os.path.splitext(fname)
-        dest_dir = os.path.join(data_dir, fname)
+        dest_dir = os.path.join(data_dir, hashed_path, fname)
         version_dir = os.path.join(dest_dir, "versions")
         dbname = os.path.join(dest_dir, fname + ".db")
         dest_fname = os.path.join(dest_dir, fname + ".ipynb")

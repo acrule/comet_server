@@ -70,7 +70,6 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
     # actions that apply to all selected cells
     if action in['run-cell', 'clear-cell-output', 'change-cell-to-markdown', 
                 'change-cell-to-code', 'change-cell-to-raw', 
-                'copy-cell', 'cut-cell',
                 'toggle-cell-output-collapsed', 'toggle-cell-output-scrolled']:
         return [x for x in selected_indices]
         
