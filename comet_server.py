@@ -15,7 +15,7 @@ from notebook.base.handlers import IPythonHandler, path_regex
 from comet_diff import get_diff_at_indices
 from comet_git import verify_git_repository, git_commit
 from comet_sqlite import record_action_to_db
-from comet_dir import find_storage_dir, create_dir
+from comet_dir import find_storage_dir, create_dir, was_saved_recently
 from comet_viewer import get_viewer_html
 
 class CometHandler(IPythonHandler):
@@ -24,7 +24,6 @@ class CometHandler(IPythonHandler):
     def get(self, path=''):
         """
         Render a website visualizing the notebook's edit history
-
         path: (str) relative path to notebook requesting POST
         """
         
@@ -35,7 +34,6 @@ class CometHandler(IPythonHandler):
     def post(self, path=''):
         """
         Save data about notebook actions
-
         path: (str) relative path to notebook requesting POST
         """
 
@@ -48,7 +46,6 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
                 track_actions=True):
     """
     Track notebook changes with git, periodic snapshots, and action tracking
-
     os_path: (str) path to notebook as saved on the operating system
     action_data: (dict) action data in the form of
         t: (int) time action was performed
@@ -62,10 +59,8 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
     """
 
     data_dir = find_storage_dir()
-
     if not data_dir:
         print("Could not find directory to save Comet data")
-
     else:
         # generate file names
         os_dir, fname = os.path.split(os_path)
@@ -111,24 +106,6 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
                 git_commit(fname, dest_dir)
             except:
                 pass
-
-def was_saved_recently(version_dir, min_time=60):
-    """ check if a previous version of the file has been saved recently
-
-    version_dir: (str) dir to look for previous versions
-    min_time: (int) minimum time in seconds allowed between saves """
-
-    versions = [f for f in os.listdir(version_dir)
-        if os.path.isfile(os.path.join(version_dir, f)) 
-        and f[-6:] == '.ipynb']
-    if len(versions) > 0:
-        vdir, vname = os.path.split(versions[-1])
-        vname, vext = os.path.splitext(vname)
-        last_time_saved = datetime.datetime.strptime(vname[-26:], "%Y-%m-%d-%H-%M-%S-%f")
-        delta = (datetime.datetime.now() - last_time_saved).seconds
-        return delta <= min_time
-    else:
-        return False
 
 def load_jupyter_server_extension(nb_app):
     """
