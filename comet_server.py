@@ -4,6 +4,7 @@ Comet Server: Server extension paired with nbextension to track notebook use
 
 import os
 import json
+import time
 import datetime
 
 import nbformat
@@ -14,9 +15,8 @@ from notebook.base.handlers import IPythonHandler, path_regex
 from comet_diff import get_diff_at_indices
 from comet_git import verify_git_repository, git_commit
 from comet_sqlite import record_action_to_db
-from comet_volume import find_storage_volume, create_dir
+from comet_dir import find_storage_dir, create_dir
 from comet_viewer import get_viewer_html
-
 
 class CometHandler(IPythonHandler):
 
@@ -28,7 +28,7 @@ class CometHandler(IPythonHandler):
         path: (str) relative path to notebook requesting POST
         """
         
-        data_dir = '/Volumes/TRACES' + path
+        data_dir = find_storage_dir() + path
         html = get_viewer_html(data_dir)
         self.write(html)
 
@@ -61,16 +61,16 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
     track_actions: (bool) track individual actions performed on the notebook
     """
 
-    volume = find_storage_volume()
+    data_dir = find_storage_dir()
 
-    if not volume:
-        print("Could not find external volume to save Comet data")
+    if not data_dir:
+        print("Could not find directory to save Comet data")
 
     else:
         # generate file names
         os_dir, fname = os.path.split(os_path)
         fname, file_ext = os.path.splitext(fname)
-        dest_dir = os.path.join(volume, fname)
+        dest_dir = os.path.join(data_dir, fname)
         version_dir = os.path.join(dest_dir, "versions")
         dbname = os.path.join(dest_dir, fname + ".db")
         dest_fname = os.path.join(dest_dir, fname + ".ipynb")
@@ -80,14 +80,14 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
         # get the notebook in the correct format (nbnode)
         current_nb = nbformat.from_dict(action_data['model'])
 
-        # if needed, create storage directories on the external volume
+        # if needed, create storage directories
         if not os.path.isdir(dest_dir):
             create_dir(dest_dir)
             create_dir(version_dir)
 
-        # save information about the action to an sqlite database
+        # save information about the action to an sqlite database        
         if track_actions:
-            record_action_to_db(action_data, dest_fname, dbname)
+            record_action_to_db(action_data, dest_fname, dbname)        
 
         # save file versions and check for changes only if different from last notebook
         if os.path.isfile(dest_fname):
@@ -96,8 +96,8 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
             if not diff:
                 return
 
-        # save the current file to the external volume for future comparison
-        nbformat.write(current_nb, dest_fname, nbformat.NO_CONVERT)
+        # save the current file for future comparison        
+        nbformat.write(current_nb, dest_fname, nbformat.NO_CONVERT)        
 
         # save a time-stamped version periodically
         if track_versions:
