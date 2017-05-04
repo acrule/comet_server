@@ -140,3 +140,45 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
     # remaining acitons such as delete-cell, cut-cell
     else: 
         return []
+
+def get_action_diff(action_data, dest_fname):
+    if not os.path.isfile(dest_fname):
+        return {}
+    
+    diff = {} 
+    action = action_data['name']
+    selected_index = action_data['index']
+    selected_indices = action_data['indices']
+    current_nb = action_data['model']['cells']
+    len_current = len(current_nb)
+    prior_nb = nbformat.read(dest_fname, nbformat.NO_CONVERT)['cells']
+    len_prior = len(prior_nb)
+    
+    check_indices = indices_to_check(action, selected_index, selected_indices,
+                                    len_current, len_prior)
+
+    # if it is a cut or copy action, save the copied cells as the diff
+    if action in ['cut-cell', 'copy-cell', 'paste-cell-above', 
+                'paste-cell-below', 'paste-cell-replace']:
+        for i in check_indices:
+            diff[i] = current_nb[i]
+
+    # Special case for undo-cell-deletion. The cell may insert at any part of
+    # the notebook, so simply return the first cell that is not the same
+    elif action in ['undo-cell-deletion']:
+        num_inserted = len_current - len_prior        
+        if num_inserted > 0:
+            first_diff = 0
+            for i in range(len_current):
+                if (prior_nb[i]["source"] != current_nb[i]["source"]
+                    or i >= len(prior_nb)): # its a new cell at the end of the nb
+                    first_diff = i
+                    break
+            for j in range(first_diff, first_diff + num_inserted):
+                if j < len_current:
+                    diff[j] = current_nb[j]
+                    
+    else:
+        diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
+
+    return diff
