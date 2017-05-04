@@ -14,11 +14,14 @@ from notebook.base.handlers import IPythonHandler, path_regex
 
 from comet_diff import get_diff_at_indices
 from comet_git import verify_git_repository, git_commit
-from comet_sqlite import record_action_to_db
+from comet_sqlite import DbManager
 from comet_dir import find_storage_dir, create_dir, was_saved_recently, hash_path
 from comet_viewer import get_viewer_html
 
 class CometHandler(IPythonHandler):
+
+    # initialize sqlite class
+    db_manager_directory = {}
 
     # check if extension loaded by visiting http://localhost:8888/api/comet
     def get(self, path=''):
@@ -26,8 +29,7 @@ class CometHandler(IPythonHandler):
         Render a website visualizing the notebook's edit history
         path: (str) relative path to notebook requesting POST
         """        
-        
-        
+                
         os_path = self.contents_manager._get_os_path(path)
         os_dir, fname = os.path.split(os_path)
         hashed_path = hash_path(os_dir)
@@ -42,12 +44,30 @@ class CometHandler(IPythonHandler):
         path: (str) relative path to notebook requesting POST
         """
 
-        post_data = self.get_json_body()
         os_path = self.contents_manager._get_os_path(path)
-        save_changes(os_path, post_data)
+        os_dir, fname = os.path.split(os_path)
+        hashed_path = hash_path(os_dir)
+        fname, file_ext = os.path.splitext(fname)
+        dest_dir = os.path.join(find_storage_dir(), hashed_path, fname)
+        db_path = os.path.join(dest_dir, fname + ".db")
+        db_key = os.path.join(hashed_path, fname)
+        version_dir = os.path.join(dest_dir, "versions")
+
+        # if needed, create storage directories
+        if not os.path.isdir(dest_dir):
+            create_dir(dest_dir)
+            create_dir(version_dir)
+
+        if db_key not in self.db_manager_directory:
+            self.db_manager_directory[db_key] = DbManager(db_key, db_path)
+            
+        db_manager = self.db_manager_directory[db_key]
+
+        post_data = self.get_json_body()
+        save_changes(os_path, post_data, db_manager)
         self.finish(json.dumps({'msg': path}))
 
-def save_changes(os_path, action_data, track_git=True, track_versions=True,
+def save_changes(os_path, action_data, db_manager, track_git=True, track_versions=True,
                 track_actions=True):
     """
     Track notebook changes with git, periodic snapshots, and action tracking
@@ -81,16 +101,11 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
         ver_fname = os.path.join(version_dir, fname + date_string + ".ipynb")
         
         # get the notebook in the correct format (nbnode)
-        current_nb = nbformat.from_dict(action_data['model'])
-
-        # if needed, create storage directories
-        if not os.path.isdir(dest_dir):
-            create_dir(dest_dir)
-            create_dir(version_dir)
+        current_nb = nbformat.from_dict(action_data['model'])        
 
         # save information about the action to an sqlite database        
         if track_actions:
-            record_action_to_db(action_data, dest_fname, dbname)        
+            db_manager.record_action_to_db(action_data, dest_fname)        
 
         # save file versions and check for changes only if different from last notebook
         if os.path.isfile(dest_fname):
@@ -108,12 +123,12 @@ def save_changes(os_path, action_data, track_git=True, track_versions=True,
                 nbformat.write(current_nb, ver_fname, nbformat.NO_CONVERT)
 
         # track file changes with git
-        if track_git:
-            try:
-                verify_git_repository(dest_dir)
-                git_commit(fname, dest_dir)
-            except:
-                pass
+        # if track_git:
+        #     try:
+        #         verify_git_repository(dest_dir)
+        #         git_commit(fname, dest_dir)
+        #     except:
+        #         pass
 
 def load_jupyter_server_extension(nb_app):
     """
