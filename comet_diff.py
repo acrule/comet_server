@@ -9,7 +9,6 @@ def get_diff_at_indices(indices, action_data, dest_fname,
                         compare_outputs = False):
     """
     look for diff at particular indices
-
     indices: (list) cell indices to compare
     action_data: (dict) new notebook data to compare
     dest_fname: (str) name of file to compare to
@@ -30,37 +29,37 @@ def get_diff_at_indices(indices, action_data, dest_fname,
         # compare source
         if i >= len(current_nb):
             break # don't compare cells that don't exist
+        # its a new cell at the end of the nb
         if i >= len(prior_nb):
+            diff[i] = current_nb[i]        
+        elif (prior_nb[i]["cell_type"] != current_nb[i]["cell_type"]        
+            or prior_nb[i]["source"] != current_nb[i]["source"]): 
             diff[i] = current_nb[i]
-        elif (prior_nb[i]["cell_type"] != current_nb[i]["cell_type"]
-            or prior_nb[i]["source"] != current_nb[i]["source"]): # its a new cell at the end of the nb
-                diff[i] = current_nb[i]
         # compare outputs
         elif compare_outputs and current_nb[i]["cell_type"] == "code":
-            prior_outputs = prior_nb[i]['outputs']
-            current_outputs = current_nb[i]['outputs']
-
-            if len(prior_outputs) != len(current_outputs):
+            prior_outs = prior_nb[i]['outputs']
+            current_outs = current_nb[i]['outputs']
+            if len(prior_outs) != len(current_outs):
                 diff[i] = current_nb[i]
-            else:
-                for j in range(len(current_outputs)):
-                    # check that the output type matches
-                    if prior_outputs[j]['output_type'] != current_outputs[j]['output_type']:
-                        diff[i] = current_nb[i]
-                    # and that the relevant data matches
-                    elif ((prior_outputs[j]['output_type'] in ["display_data","execute_result"]
-                        and prior_outputs[j]['data'] != current_outputs[j]['data'])
-                        or (prior_outputs[j]['output_type'] == "stream"
-                        and prior_outputs[j]['text'] != current_outputs[j]['text'])
-                        or (prior_outputs[j]['output_type'] == "error"
-                        and prior_outputs[j]['evalue'] != current_outputs[j]['evalue'])):
-                            diff[i] = current_nb[i]
+                break
+            for j in range(len(current_outs)):
+                # check that the output type matches
+                if prior_outs[j]['output_type'] != current_outs[j]['output_type']:
+                    diff[i] = current_nb[i]                    
+                # and that the relevant data matches
+                elif((prior_outs[j]['output_type'] in ["display_data","execute_result"]
+                    and prior_outs[j]['data'] != current_outs[j]['data'])
+                    or (prior_outs[j]['output_type'] == "stream"
+                    and prior_outs[j]['text'] != current_outs[j]['text'])
+                    or (prior_outs[j]['output_type'] == "error"
+                    and prior_outs[j]['evalue'] != current_outs[j]['evalue'])):
+                    diff[i] = current_nb[i]
     return diff
 
-def indices_to_check(action, selected_index, selected_indices, len_current, len_prior):
+def indices_to_check(action, selected_index, selected_indices, len_current, 
+                    len_prior):
     """
     Identify which notebook cells may have changed based on the type of action
-
     action: (str) action name
     selected_index: (int) single selected cell
     selected_indices: (list of ints) all selected cells
@@ -125,7 +124,7 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
     elif action in ['split-cell-at-cursor']:
         return [selected_indices[0], selected_index + 1]
             
-    # actions applied to all cells in the notebook, or that could affect all cells
+    # actions applied to all cells in the notebook, or could affect all cells
     elif action in ['run-all-cells','restart-kernel-and-clear-output',
                     'confirm-restart-kernel-and-run-all-cells', 
                     'undo-cell-deletion']:
@@ -142,6 +141,12 @@ def indices_to_check(action, selected_index, selected_indices, len_current, len_
         return []
 
 def get_action_diff(action_data, dest_fname):
+    """
+    Get a modified diff when saving the diff caused by an action
+    accounts for special cases with copy / paste and undo-cell-deletion
+    action_data: (dict) new notebook data to compare
+    dest_fname: (str) name of file to compare to
+    """
     if not os.path.isfile(dest_fname):
         return {}
     
@@ -171,13 +176,12 @@ def get_action_diff(action_data, dest_fname):
             first_diff = 0
             for i in range(len_current):
                 if (prior_nb[i]["source"] != current_nb[i]["source"]
-                    or i >= len(prior_nb)): # its a new cell at the end of the nb
+                    or i >= len(prior_nb)): # a new cell at the end of the nb
                     first_diff = i
                     break
             for j in range(first_diff, first_diff + num_inserted):
                 if j < len_current:
-                    diff[j] = current_nb[j]
-                    
+                    diff[j] = current_nb[j]                    
     else:
         diff = get_diff_at_indices(check_indices, action_data, dest_fname, True)
 

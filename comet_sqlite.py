@@ -12,8 +12,7 @@ from threading import Timer
 from comet_diff import get_diff_at_indices, indices_to_check, get_action_diff
 
 
-class DbManager(object):
-        
+class DbManager(object):        
     def __init__(self, db_key, db_path):
         self.db_key = db_key
         self.db_path = db_path
@@ -52,6 +51,7 @@ class DbManager(object):
             self.commitTimer.start()
             
     def commit_queue(self):
+        # commit the queued data
         self.conn = sqlite3.connect(self.db_path)
         self.c = self.conn.cursor()     
         
@@ -87,7 +87,7 @@ class DbManager(object):
         self.add_to_commit_queue(action_data, diff)
 
 def get_viewer_data(db):
-
+    # get data for the comet visualization
     conn = sqlite3.connect(db)
     c = conn.cursor()
     
@@ -100,14 +100,13 @@ def get_viewer_data(db):
     rows = c.fetchall()
     num_runs = len(rows)
     
-    # TODO only need to selelct times
     c.execute("SELECT time FROM actions")
     rows = c.fetchall()
     total_time = 0;
     start_time = rows[0][0]
     last_time = rows[0][0]
     for i in range(1,len(rows)):
-        # 5 minutes
+        # use 5 minutes of inactivity as threshold for each editing session
         if (rows[i][0] - last_time) >= (5 * 60 * 1000) or i == len(rows) - 1:
             total_time = total_time + last_time - start_time            
             start_time = rows[i][0]

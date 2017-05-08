@@ -1,3 +1,7 @@
+"""
+Comet Server: Server extension paired with nbextension to track notebook use
+"""
+
 from setuptools import setup
 
 setup(

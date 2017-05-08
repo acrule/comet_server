@@ -38,7 +38,8 @@ def was_saved_recently(version_dir, min_time=60):
     if len(versions) > 0:
         vdir, vname = os.path.split(versions[-1])
         vname, vext = os.path.splitext(vname)
-        last_time_saved = datetime.datetime.strptime(vname[-26:], "%Y-%m-%d-%H-%M-%S-%f")
+        last_time_saved = datetime.datetime.strptime(vname[-26:], 
+            "%Y-%m-%d-%H-%M-%S-%f")
         delta = (datetime.datetime.now() - last_time_saved).seconds
         return delta <= min_time
     else:
@@ -46,4 +47,4 @@ def was_saved_recently(version_dir, min_time=60):
         
 def hash_path(path):    
     h = sha1(path.encode())
-    return h.hexdigest()[0:8]
+    return h.hexdigest()[0:8] #only need first 8 chars to be uniquely identified

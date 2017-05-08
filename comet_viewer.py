@@ -3,21 +3,18 @@ Comet Server: Server extension paired with nbextension to track notebook use
 """
 
 import os
-import cgi
 import datetime
-import nbconvert
 import nbformat
 
 from comet_sqlite import get_viewer_data
 
-def get_viewer_html(data_dir):
+def get_viewer_html(data_dir, fname):
     version_dir = os.path.join(data_dir, 'versions')
-    filename = data_dir.split('/')[-1]
-    db = os.path.join(data_dir, filename + ".db")    
+    db = os.path.join(data_dir, fname + ".db")    
     numDeletions, numRuns, totalTime = get_viewer_data(db)
     
     if os.path.isdir(version_dir):            
-        data = {'name': filename,
+        data = {'name': fname,
                 'editTime': totalTime,
                 'numRuns': numRuns,
                 'numDeletions': numDeletions,
@@ -28,12 +25,15 @@ def get_viewer_html(data_dir):
             if os.path.isfile(os.path.join(version_dir, f))
             and f[-6:] == '.ipynb']
 
-        for i, v in enumerate(versions):
-            
+        for i, v in enumerate(versions):            
             if i > 0:
-                current_nb_time = datetime.datetime.strptime(v[-32:-6], "%Y-%m-%d-%H-%M-%S-%f")
-                past_nb_time = datetime.datetime.strptime(versions[i-1][-32:-6], "%Y-%m-%d-%H-%M-%S-%f")
+                #TODO these datetime conversions seem hacky
+                current_nb_time = datetime.datetime.strptime(v[-32:-6], 
+                    "%Y-%m-%d-%H-%M-%S-%f")
+                past_nb_time = datetime.datetime.strptime(versions[i-1][-32:-6], 
+                    "%Y-%m-%d-%H-%M-%S-%f")
                 time_diff = current_nb_time - past_nb_time
+                # consider 15 minutes of inactivity as a gap in editing
                 if time_diff.total_seconds() >= 15 * 60:
                     data['gaps'].append(i)
             
@@ -46,7 +46,7 @@ def get_viewer_html(data_dir):
             
             # cells can have multiple outputs , each with a different type
             # here we track the "highest" level output with 
-            # error> display_data > execute result > stream
+            # error > display_data > execute result > stream
             for c in nb_cells:
                 cell_type = c.cell_type
                 if c.cell_type == "code":
@@ -58,11 +58,13 @@ def get_viewer_html(data_dir):
                     elif "execute_result" in output_types:
                         cell_type = "execute_result"
                     elif "stream" in output_types:
-                        cell_type = "stream"
+                        cell_type = "stream"        
                 
                 version_data['cells'].append(cell_type)
+            
             data['versions'].append(version_data)        
         
+        #TODO find a way to use a template rather than dump all the HTML here
         html = """<!DOCTYPE html>\n
             <html>\n
             <style>\n
@@ -210,6 +212,7 @@ def get_viewer_html(data_dir):
             </body>\n
             </html>"""  
     
+    # If there is no data, just return a boilerplate page
     else:
         html = """<!DOCTYPE html>\n
             <html>\n
