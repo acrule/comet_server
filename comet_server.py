@@ -44,7 +44,8 @@ class CometHandler(IPythonHandler):
         path: (str) relative path to notebook requesting POST
         """
         # get file, directory, and database names
-        os_dir, fname = os.path.split(self.contents_manager._get_os_path(path))
+        os_path = self.contents_manager._get_os_path(path)
+        os_dir, fname = os.path.split(os_path)
         fname, file_ext = os.path.splitext(fname)
         hashed_path = hash_path(os_dir)        
         dest_dir = os.path.join(find_storage_dir(), hashed_path, fname)
