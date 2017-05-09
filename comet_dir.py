@@ -18,7 +18,7 @@ def find_storage_dir():
     return storage_dir
     
 def default_storage_dir():
-    return os.path.expanduser('~/.jupyter/comet_data')
+    return os.path.expanduser('~/.jupyter')
             
 def create_dir(directory):
     try:
