@@ -3,7 +3,6 @@ Comet Server: Server extension paired with nbextension to track notebook use
 """
 
 import os
-import time
 import pickle
 import sqlite3
 import nbformat
@@ -56,13 +55,9 @@ class DbManager(object):
         self.c = self.conn.cursor()     
         
         try:
-            start_time = time.time()    
             self.c.executemany('INSERT INTO actions VALUES (?,?,?,?,?)', self.queue)        
             self.conn.commit()
             self.queue = []
-            
-            end_time = time.time()
-            print("Commit time: " + str(end_time - start_time))
         except:
             self.conn.rollback()
             raise
