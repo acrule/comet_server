@@ -2,16 +2,16 @@
 Comet Server: Server extension paired with nbextension to track notebook use
 """
 
-from setuptools import setup
+from distutils.core import setup
 
 setup(
     name='comet_server',
     version='0.1',
-    scripts=['comet_server.py',
-                'comet_dir.py',
-                'comet_diff.py',
-                'comet_git.py',
-                'comet_sqlite.py',                
-                'comet_viewer.py'],
+    py_modules=['comet_server',
+                'comet_dir',
+                'comet_diff',
+                'comet_git',
+                'comet_sqlite',                
+                'comet_viewer'],
     url = 'https://github.com/activityhistory/comet_server'
 )
