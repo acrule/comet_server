@@ -8,7 +8,7 @@ import sqlite3
 import nbformat
 from threading import Timer
 
-from comet_diff import get_diff_at_indices, indices_to_check, get_action_diff
+from comet_server.comet_diff import get_diff_at_indices, indices_to_check, get_action_diff
 
 
 class DbManager(object):        

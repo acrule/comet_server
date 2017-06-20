@@ -10,11 +10,11 @@ import nbformat
 from notebook.utils import url_path_join
 from notebook.base.handlers import IPythonHandler, path_regex
 
-from comet_diff import get_diff_at_indices
-from comet_git import verify_git_repository, git_commit
-from comet_sqlite import DbManager
-from comet_dir import find_storage_dir, create_dir, was_saved_recently, hash_path
-from comet_viewer import get_viewer_html
+from comet_server.comet_diff import get_diff_at_indices
+from comet_server.comet_git import verify_git_repository, git_commit
+from comet_server.comet_sqlite import DbManager
+from comet_server.comet_dir import find_storage_dir, create_dir, was_saved_recently, hash_path
+from comet_server.comet_viewer import get_viewer_html
 
 class CometHandler(IPythonHandler):
 

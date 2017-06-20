@@ -34,7 +34,7 @@ Once you have the file, insert the following lines.
 
 ```
 c = get_config()
-c.NotebookApp.nbserver_extensions = {'comet_server':True}
+c.NotebookApp.nbserver_extensions = {'comet_server.comet_server':True}
 
 ```
 

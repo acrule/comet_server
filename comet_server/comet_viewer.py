@@ -6,7 +6,7 @@ import os
 import datetime
 import nbformat
 
-from comet_sqlite import get_viewer_data
+from comet_server.comet_sqlite import get_viewer_data
 
 def get_viewer_html(data_dir, fname):
     version_dir = os.path.join(data_dir, 'versions')
